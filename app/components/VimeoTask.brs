@@ -46,8 +46,10 @@ function resolveLive() as Object
     configUrl = clip.configUrl
     liveUri = clip.uri
 
-    ' Public events: look through the event's videos.
-    if configUrl = "" and view <> "embed_only"
+    ' Look through the event's videos: the live broadcast is listed there as
+    ' "streaming". This is the same list the sermon archive comes from, which is
+    ' known to work for this event, so it's tried for every kind of event.
+    if configUrl = ""
         r = fetchVideos(cfg, auth, "uri,config_url,created_time,live.status")
         if r.code = 200
             found = vpFindStreamingVideo(ParseJson(r.body))
@@ -56,13 +58,14 @@ function resolveLive() as Object
                 streamingSeen = true
                 if liveUri = "" then liveUri = found.uri
             end if
-        else if not clip.known
+        else if not clip.known and view <> "embed_only"
             ' If the event already said nothing is live, a failure here doesn't matter.
+            ' (Embed-only events still get the embed page below.)
             return errorResult("V3", r)
         end if
     end if
 
-    ' Embed-only events: the embed page carries the config link.
+    ' Last resort for embed-only events: the embed page carries the config link.
     if configUrl = "" and view = "embed_only" and (clip.streaming or not clip.known)
         r = httpGet("https://vimeo.com/event/" + cfg.eventId + "/embed", {
             "Accept": "text/html,application/xhtml+xml"
