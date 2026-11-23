@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="MainScene" extends="Scene">
+    <script type="text/brightscript" uri="pkg:/source/AppConfig.brs" />
+    <script type="text/brightscript" uri="MainScene.brs" />
+    <children>
+        <Rectangle id="background" width="1920" height="1080" color="0x14213DFF" />
+
+        <Group id="messageGroup">
+            <Label id="churchName" translation="[0,230]" width="1920" horizAlign="center" color="0xFFFFFFFF">
+                <Font role="font" uri="font:BoldSystemFontFile" size="84" />
+            </Label>
+            <Label id="subtitle" translation="[0,345]" width="1920" horizAlign="center" color="0xF2C14EFF">
+                <Font role="font" uri="font:SystemFontFile" size="48" />
+            </Label>
+            <LayoutGroup id="textStack" translation="[960,500]" layoutDirection="vert" horizAlignment="center" itemSpacings="[36]">
+                <Label id="headline" width="1600" horizAlign="center" wrap="true" color="0xFFFFFFFF">
+                    <Font role="font" uri="font:BoldSystemFontFile" size="64" />
+                </Label>
+                <Label id="detail" width="1500" horizAlign="center" wrap="true" color="0xD6DCE5FF">
+                    <Font role="font" uri="font:SystemFontFile" size="44" />
+                </Label>
+            </LayoutGroup>
+            <Label id="footer" translation="[0,900]" width="1920" horizAlign="center" color="0xAEB8C9FF">
+                <Font role="font" uri="font:SystemFontFile" size="34" />
+            </Label>
+            <Label id="status" translation="[0,1000]" width="1860" horizAlign="right" color="0x7D8AA3FF">
+                <Font role="font" uri="font:SystemFontFile" size="26" />
+            </Label>
+        </Group>
+
+        <Video id="video" width="1920" height="1080" visible="false" enableTrickPlay="false" />
+
+        <Timer id="pollTimer" repeat="false" />
+        <Timer id="liveCheckTimer" repeat="true" />
+    </children>
+</component>

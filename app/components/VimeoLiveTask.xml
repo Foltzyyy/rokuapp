@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- Asks Vimeo whether the event is live and, if so, for a playable .m3u8 link.
+     Runs on a background thread because Roku only allows network calls there. -->
+<component name="VimeoLiveTask" extends="Task">
+    <interface>
+        <!-- "live": find the live broadcast. "replay": find the newest recording. -->
+        <field id="mode" type="string" value="live" />
+        <!-- { status: "live" | "replay" | "offline" | "error", url, title, code } -->
+        <field id="result" type="assocarray" />
+    </interface>
+    <script type="text/brightscript" uri="pkg:/source/AppConfig.brs" />
+    <script type="text/brightscript" uri="VimeoParse.brs" />
+    <script type="text/brightscript" uri="VimeoLiveTask.brs" />
+</component>
