@@ -1,5 +1,5 @@
 ' Pure helpers for reading Vimeo's JSON and HTML. No network calls here, so these
-' can be unit-tested off the TV (see tests/parse_test.brs).
+' can be unit-tested off the Roku (see tests/parse_test.brs).
 
 ' Reads a nested value such as "clip_to_play.live.status". Returns invalid if any
 ' part of the path is missing.

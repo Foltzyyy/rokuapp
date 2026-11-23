@@ -7,22 +7,24 @@ A Roku app that opens straight to The Chapel (Littlestown) livestream on Vimeo.
 - **PLAY** on the waiting screen plays the most recent service. **OK** checks again right now.
 - **Back** leaves the app, like any other channel.
 
-## Install it on the TV (one time, about 15 minutes)
+## Install it on the Roku (one time, about 15 minutes)
 
-You need a computer on **the same Wi-Fi as the TV**. If you're setting up Grandma's TV, do this at her house.
+You need a computer on **the same Wi-Fi as the Roku**. If you're setting up Grandma's Roku, do this at her house.
 
 1. **Download the app file.** On GitHub, open `dist/ChapelLive.zip` and click the download button (**Download raw file**).
-2. **Turn on developer mode on the TV.** With the TV's remote, press:
+2. **Turn on developer mode on the Roku.** With the Roku remote, press:
    **Home ×3, Up ×2, Right, Left, Right, Left, Right**.
    A *Developer Settings* screen appears with an address like `http://192.168.1.23`. Write it down.
-   Choose **Enable installer and restart**, agree to the license, and pick a password (write that down too). The TV restarts.
-   - If the TV won't enable it, the Roku account linked to the TV may need a free sign-up at developer.roku.com first.
+   Choose **Enable installer and restart**, agree to the license, and pick a password (write that down too). The Roku restarts.
+   - If it won't enable, the Roku account linked to the box may need a free sign-up at developer.roku.com first.
 3. **Open that address in the computer's web browser.** Log in with username `rokudev` and the password you picked.
-4. Click **Upload**, choose `ChapelLive.zip`, then click **Install** (on some TVs: **Install with zip**).
+4. Click **Upload**, choose `ChapelLive.zip`, then click **Install** (on some models: **Install with zip**).
 5. The app opens on the TV. It also appears on the home screen as **Chapel Live**, usually at the end of the list.
    To move it to the top, highlight it, press **\***, and choose **Move channel**.
 
 **Updating later:** repeat steps 3–4 with the new zip. It replaces the old version.
+
+**Older Roku boxes:** the app needs Roku software 9.1 or newer. Any box that still gets updates has it. Check under **Settings → System → About**.
 
 **Good to know:** a Roku holds only one app installed this way. If it ever disappears (for example after a factory reset), repeat the steps.
 
@@ -38,7 +40,7 @@ The code at the bottom right says which step failed. Send a photo of the screen.
 
 | Code starts with | What failed |
 |---|---|
-| `V1` | Getting a viewer pass from vimeo.com. Vimeo may be blocking the TV. Fix: set `apiToken` in `app/source/AppConfig.brs`. |
+| `V1` | Getting a viewer pass from vimeo.com. Vimeo may be blocking the Roku. Fix: set `apiToken` in `app/source/AppConfig.brs`. |
 | `V2` | Reading the event. `-3200` means the event only plays on certain websites. `PRIVATE` means the event is set to private. |
 | `V3` | Listing the event's videos. |
 | `V4` | Reading the event's embed page (used when the event is "embed only"). |
@@ -75,4 +77,4 @@ npx @rokucommunity/brs app/components/VimeoParse.brs tests/parse_test.brs
 npx -p brighterscript bsc --rootDir app --createPackage false
 ```
 
-Logs: while the TV is in developer mode, `telnet <tv-address> 8085` shows the app's console output.
+Logs: while the Roku is in developer mode, `telnet <roku-address> 8085` shows the app's console output.

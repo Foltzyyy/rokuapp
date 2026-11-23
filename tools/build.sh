@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Packages app/ into dist/ChapelLive.zip, the file you upload to the TV.
+# Packages app/ into dist/ChapelLive.zip, the file you upload to the Roku.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p dist
