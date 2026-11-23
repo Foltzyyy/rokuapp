@@ -121,3 +121,123 @@ function vpPickStream(config as Dynamic) as Object
     end for
     return out
 end function
+
+' ---------- Sermon archive ----------
+
+' Returns a whole number from JSON, or 0.
+function vpToInt(v as Dynamic) as Integer
+    t = type(v)
+    if t = "Integer" or t = "roInt" or t = "roInteger" or t = "LongInteger" or t = "roLongInteger" then return v
+    if t = "Float" or t = "roFloat" or t = "Double" or t = "roDouble" then return Int(v)
+    return 0
+end function
+
+' Picks a thumbnail link from Vimeo's "pictures" object: the smallest one at least
+' minWidth wide, else the largest. Falls back to base_link with a size suffix.
+function vpPickThumb(pictures as Dynamic, minWidth as Integer) as String
+    best = ""
+    bestWidth = 0
+    largest = ""
+    largestWidth = 0
+    sizes = vpGet(pictures, "sizes")
+    if type(sizes) = "roArray"
+        for each size in sizes
+            link = vpStr(vpGet(size, "link"))
+            width = vpToInt(vpGet(size, "width"))
+            if link <> ""
+                if width >= minWidth and (best = "" or width < bestWidth)
+                    best = link
+                    bestWidth = width
+                end if
+                if width > largestWidth or largest = ""
+                    largest = link
+                    largestWidth = width
+                end if
+            end if
+        end for
+    end if
+    if best <> "" then return best
+    if largest <> "" then return largest
+    base = vpStr(vpGet(pictures, "base_link"))
+    if base <> "" then return base + "_640x360"
+    return ""
+end function
+
+' Turns the event's /videos list into archive entries, newest first.
+' Skips anything live or not yet available. Each entry:
+'   { uri, name, created, duration, thumb, configUrl }
+function vpArchiveItems(videosJson as Dynamic, maxCount as Integer) as Object
+    items = []
+    data = vpGet(videosJson, "data")
+    if type(data) <> "roArray" then return items
+    for each v in data
+        status = vpStr(vpGet(v, "live.status"))
+        configUrl = vpStr(vpGet(v, "config_url"))
+        if configUrl <> "" and (status = "done" or status = "")
+            items.Push({
+                uri: vpStr(vpGet(v, "uri"))
+                name: vpStr(vpGet(v, "name"))
+                created: vpStr(vpGet(v, "created_time"))
+                duration: vpToInt(vpGet(v, "duration"))
+                thumb: vpPickThumb(vpGet(v, "pictures"), 640)
+                configUrl: configUrl
+            })
+        end if
+    end for
+
+    ' Newest first (insertion sort; ISO dates sort as text).
+    for i = 1 to items.Count() - 1
+        current = items[i]
+        j = i - 1
+        while j >= 0 and items[j].created < current.created
+            items[j + 1] = items[j]
+            j = j - 1
+        end while
+        items[j + 1] = current
+    end for
+
+    while items.Count() > maxCount
+        items.Pop()
+    end while
+    return items
+end function
+
+' "1 hr 12 min", "48 min", or "" for unknown.
+function vpDurationText(seconds as Integer) as String
+    if seconds <= 0 then return ""
+    minutes = Int((seconds + 30) / 60)
+    if minutes < 60 then return minutes.ToStr() + " min"
+    hours = Int(minutes / 60)
+    rest = minutes - hours * 60
+    if rest = 0 then return hours.ToStr() + " hr"
+    return hours.ToStr() + " hr " + rest.ToStr() + " min"
+end function
+
+' Chooses the two lines shown under a thumbnail. Recurring-event recordings often
+' all share the event's name, so the date becomes the title in that case.
+function vpItemLabels(name as String, eventTitle as String, dateText as String, durationText as String) as Object
+    if name = "" or LCase(name) = LCase(eventTitle)
+        title = dateText
+        subtitle = durationText
+        if title = "" then title = name
+    else
+        title = name
+        subtitle = dateText
+    end if
+    return { title: title, subtitle: subtitle }
+end function
+
+' "2026-11-16T15:02:11+00:00" -> "Sunday, November 16" (adds the year if it isn't this year).
+function vpFormatDate(iso as String) as String
+    if Len(iso) < 19 then return ""
+    when = CreateObject("roDateTime")
+    when.FromISO8601String(Left(iso, 19) + "Z")
+    when.ToLocalTime()
+    days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+    text = days[when.GetDayOfWeek()] + ", " + months[when.GetMonth() - 1] + " " + when.GetDayOfMonth().ToStr()
+    now = CreateObject("roDateTime")
+    now.ToLocalTime()
+    if when.GetYear() <> now.GetYear() then text = text + ", " + when.GetYear().ToStr()
+    return text
+end function

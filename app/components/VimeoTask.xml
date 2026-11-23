@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- Talks to Vimeo on a background thread (Roku only allows network calls there).
+     mode "live":    is the service live? -> { status: "live" | "offline" | "error", url, code }
+     mode "archive": past services        -> { status: "ok" | "error", items, code }
+     mode "play":    a playable link for one archive video (configUrl, videoUri)
+                                          -> { status: "play" | "error", url, title, code } -->
+<component name="VimeoTask" extends="Task">
+    <interface>
+        <field id="mode" type="string" value="live" />
+        <field id="configUrl" type="string" />
+        <field id="videoUri" type="string" />
+        <field id="result" type="assocarray" />
+    </interface>
+    <script type="text/brightscript" uri="pkg:/source/AppConfig.brs" />
+    <script type="text/brightscript" uri="VimeoParse.brs" />
+    <script type="text/brightscript" uri="VimeoTask.brs" />
+</component>

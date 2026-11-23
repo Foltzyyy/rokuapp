@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- Test stand-in for Roku's Task node: never runs; the test sets "result" itself. -->
+<component name="Task" extends="Node">
+    <interface>
+        <field id="functionName" type="string" />
+        <field id="control" type="string" />
+    </interface>
+</component>

@@ -8,18 +8,26 @@ function AppConfig() as Object
         ' that are only allowed to play on certain websites.
         embedPage: "https://thechapel.info/littlestown/"
 
-        ' Text on the "not live right now" screen.
-        churchName: "The Chapel"
-        subtitle: "Littlestown Livestream"
+        ' Shown at the top of the screen while the live service plays.
+        liveTitle: "The Chapel Littlestown"
 
-        ' How often to check whether the service has started (seconds).
+        ' Optional line on the live card, e.g. "Sundays at 10:30 AM". Leave empty to hide it.
+        serviceTimes: ""
+
+        ' Start the live service by itself when it begins (unless she pressed Back to leave it).
+        autoPlayLive: true
+
+        ' How many past services to show in the sermon archive.
+        archiveCount: 30
+
+        ' How often to check whether the service is live (seconds).
         pollSeconds: 60
 
-        ' While watching, how often to double-check the service is still live (seconds).
-        liveCheckSeconds: 120
+        ' How often to refresh the sermon archive (seconds).
+        archiveRefreshSeconds: 1800
 
         ' Optional: a Vimeo personal access token with only the "public" scope.
-        ' Leave empty unless the app shows a code starting with V1.
+        ' Leave empty unless the app shows a code ending in 1 (V1, A1 or R1).
         apiToken: ""
     }
 end function

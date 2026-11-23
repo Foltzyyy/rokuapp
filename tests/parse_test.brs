@@ -64,6 +64,49 @@ sub Main()
     check("error_code number", vpToText(vpGet(ParseJson("{""error_code"":3200}"), "error_code")), "3200")
     check("missing error_code", vpToText(vpGet(ParseJson("{}"), "error_code")), "")
 
+    ' --- vpPickThumb ---
+    pics = ParseJson("{""base_link"":""https://i.vimeocdn.com/video/1-a-d"",""sizes"":[{""width"":295,""link"":""https://t/295""},{""width"":1280,""link"":""https://t/1280""},{""width"":640,""link"":""https://t/640""},{""width"":960,""link"":""https://t/960""}]}")
+    check("thumb: smallest >= 640", vpPickThumb(pics, 640), "https://t/640")
+    pics = ParseJson("{""sizes"":[{""width"":100,""link"":""https://t/100""},{""width"":295,""link"":""https://t/295""}]}")
+    check("thumb: largest when all small", vpPickThumb(pics, 640), "https://t/295")
+    check("thumb: base_link fallback", vpPickThumb(ParseJson("{""base_link"":""https://i/v/1-a-d""}"), 640), "https://i/v/1-a-d_640x360")
+    check("thumb: nothing", vpPickThumb(invalid, 640), "")
+
+    ' --- vpArchiveItems ---
+    list = ParseJson("{""data"":[{""uri"":""/videos/1"",""name"":""Sunday Worship"",""created_time"":""2026-11-09T15:00:00+00:00"",""duration"":4320,""config_url"":""https://c/1"",""live"":{""status"":""done""}},{""uri"":""/videos/3"",""name"":""Sunday Worship"",""created_time"":""2026-11-23T15:00:00+00:00"",""config_url"":""https://c/3"",""live"":{""status"":""streaming""}},{""uri"":""/videos/2"",""name"":""Hope Week 2"",""created_time"":""2026-11-16T15:00:00+00:00"",""duration"":3000,""config_url"":""https://c/2"",""live"":{""status"":""done""},""pictures"":{""sizes"":[{""width"":640,""link"":""https://t/2""}]}},{""uri"":""/videos/4"",""created_time"":""2026-11-30T15:00:00+00:00"",""config_url"":""https://c/4"",""live"":{""status"":""unavailable""}},{""uri"":""/videos/5"",""name"":""Uploaded"",""created_time"":""2026-10-01T12:00:00+00:00"",""config_url"":""https://c/5""}]}")
+    items = vpArchiveItems(list, 10)
+    check("archive: live/upcoming skipped", items.Count(), 3)
+    check("archive: newest first", items[0].uri, "/videos/2")
+    check("archive: then older", items[1].uri, "/videos/1")
+    check("archive: uploaded video kept", items[2].uri, "/videos/5")
+    check("archive: duration", items[0].duration, 3000)
+    check("archive: thumb", items[0].thumb, "https://t/2")
+    check("archive: max count", vpArchiveItems(list, 2).Count(), 2)
+    check("archive: bad input", vpArchiveItems(invalid, 10).Count(), 0)
+
+    ' --- vpDurationText ---
+    check("duration 0", vpDurationText(0), "")
+    check("duration 48 min", vpDurationText(48 * 60 + 10), "48 min")
+    check("duration 1 hr", vpDurationText(3600), "1 hr")
+    check("duration 1 hr 12 min", vpDurationText(4320), "1 hr 12 min")
+
+    ' --- vpItemLabels ---
+    l = vpItemLabels("Sunday Worship", "sunday worship", "Sunday, November 16", "1 hr 12 min")
+    check("labels: generic name -> date title", l.title, "Sunday, November 16")
+    check("labels: generic name -> duration subtitle", l.subtitle, "1 hr 12 min")
+    l = vpItemLabels("Hope Week 2", "Sunday Worship", "Sunday, November 16", "50 min")
+    check("labels: real title kept", l.title, "Hope Week 2")
+    check("labels: date as subtitle", l.subtitle, "Sunday, November 16")
+    check("labels: no name, no date", vpItemLabels("", "x", "", "").title, "")
+
+    ' --- vpFormatDate (needs roDateTime; the test machine's clock is UTC) ---
+    year = CreateObject("roDateTime").GetYear().ToStr()
+    thisYear = vpFormatDate(year + "-06-15T15:00:00+00:00")
+    check("date this year: month and day", Instr(1, thisYear, ", June 15") > 0, true)
+    check("date this year: no year shown", Instr(1, thisYear, year), 0)
+    check("date other year", vpFormatDate("2025-12-25T15:00:00+00:00"), "Thursday, December 25, 2025")
+    check("date too short", vpFormatDate("2026"), "")
+
     print ""
     print m.passed; " passed,"; m.failed; " failed"
     if m.failed > 0 then print "TESTS FAILED" else print "ALL TESTS PASSED"

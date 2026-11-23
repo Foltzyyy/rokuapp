@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- Test stand-in for Roku's Video node: the test sets "state" to simulate playback. -->
+<component name="Video" extends="Group">
+    <interface>
+        <field id="width" type="float" />
+        <field id="height" type="float" />
+        <field id="content" type="node" />
+        <field id="control" type="string" />
+        <field id="state" type="string" value="none" />
+        <field id="enableTrickPlay" type="boolean" value="true" />
+        <field id="errorCode" type="integer" />
+        <field id="errorMsg" type="string" />
+    </interface>
+</component>

@@ -1,205 +1,330 @@
-' What the viewer sees:
-'   idle   - "not live right now" screen; checks Vimeo every pollSeconds
-'   live   - the live service, full screen; re-checks every liveCheckSeconds
-'   replay - the most recent recording (press PLAY on the idle screen)
-' The live service always takes over, even from a replay.
+' The home screen has two parts:
+'   - the live card (focused at start): says whether the service is live; OK plays it
+'   - the sermon archive row underneath: past services; OK plays one
+' The live service starts by itself when it begins (AppConfig autoPlayLive),
+' unless she pressed Back to leave it. Back during any video returns home.
+'
+' m.mode: "home" | "live" (watching live) | "archive" (watching a past service)
+'         | "loading" (fetching a video link)
 
 sub init()
     m.cfg = AppConfig()
+
+    m.home = m.top.findNode("home")
+    m.clock = m.top.findNode("clock")
+    m.statusCode = m.top.findNode("statusCode")
+    m.heroRing = m.top.findNode("heroRing")
+    m.pillBg = m.top.findNode("pillBg")
+    m.pillDot = m.top.findNode("pillDot")
+    m.pillText = m.top.findNode("pillText")
+    m.heroHeadline = m.top.findNode("heroHeadline")
+    m.heroBody = m.top.findNode("heroBody")
+    m.heroHint = m.top.findNode("heroHint")
+    m.archiveMessage = m.top.findNode("archiveMessage")
+    m.archiveRow = m.top.findNode("archiveRow")
     m.video = m.top.findNode("video")
-    m.headline = m.top.findNode("headline")
-    m.detail = m.top.findNode("detail")
-    m.footer = m.top.findNode("footer")
-    m.status = m.top.findNode("status")
-    m.top.findNode("churchName").text = m.cfg.churchName
-    m.top.findNode("subtitle").text = m.cfg.subtitle
+    m.liveBadge = m.top.findNode("liveBadge")
+    m.loading = m.top.findNode("loading")
+    m.loadingTitle = m.top.findNode("loadingTitle")
+    m.loadingDetail = m.top.findNode("loadingDetail")
+
+    ' Size the "LIVE NOW" badge and put the title next to it.
+    badgeText = m.top.findNode("badgeText")
+    badgeWidth = 50 + badgeText.boundingRect().width + 22
+    m.top.findNode("badgeBg").width = badgeWidth
+    badgeTitle = m.top.findNode("badgeTitle")
+    badgeTitle.text = m.cfg.liveTitle
+    badgeTitle.translation = [96 + badgeWidth + 28, 49]
 
     m.pollTimer = m.top.findNode("pollTimer")
     m.pollTimer.duration = m.cfg.pollSeconds
-    m.pollTimer.observeField("fire", "onPollTimer")
-    m.liveCheckTimer = m.top.findNode("liveCheckTimer")
-    m.liveCheckTimer.duration = m.cfg.liveCheckSeconds
-    m.liveCheckTimer.observeField("fire", "onLiveCheckTimer")
+    m.pollTimer.observeField("fire", "onPoll")
+    m.pollTimer.control = "start"
+    m.clockTimer = m.top.findNode("clockTimer")
+    m.clockTimer.observeField("fire", "updateClock")
+    m.clockTimer.control = "start"
+    m.badgeTimer = m.top.findNode("badgeTimer")
+    m.badgeTimer.observeField("fire", "onBadgeTimer")
     m.video.observeField("state", "onVideoState")
+    m.archiveRow.observeField("rowItemSelected", "onArchiveSelected")
 
-    m.mode = "idle"
+    m.mode = "home"
+    m.focusArea = "hero"
+    m.heroState = ""
+    m.isLive = false
+    m.liveUrl = ""
+    m.liveDismissed = false   ' she pressed Back during this live service
+    m.reconnecting = false
+    m.failures = 0            ' failed live checks in a row
+    m.offlineStrikes = 0      ' "not live" answers in a row while watching
+    m.bufferingStrikes = 0    ' checks in a row that found the live video stuck loading
+    m.playErrors = 0
+    m.archiveCount = 0
+    m.archiveLoadedAt = 0
     m.liveTask = invalid
-    m.replayTask = invalid
-    m.failures = 0          ' failed checks in a row
-    m.playErrors = 0        ' playback errors in a row
-    m.offlineStrikes = 0    ' "not live" answers in a row while watching
-    m.bufferingStrikes = 0  ' live checks in a row that found the video stuck buffering
-    m.lastError = ""
-    m.lastChecked = ""
+    m.archiveTask = invalid
+    m.playTask = invalid
 
-    showScreen("Looking for the service...", "", "")
-    m.top.setFocus(true)
+    updateClock()
+    setHero("checking")
+    focusHero()
     m.top.signalBeacon("AppLaunchComplete")
     checkLive()
+    loadArchive()
 end sub
 
 ' ---------- Asking Vimeo ----------
 
-sub checkLive()
-    if m.liveTask <> invalid then return
-    m.liveTask = startTask("live", "onLiveResult")
-end sub
-
-sub loadReplay()
-    if m.replayTask <> invalid then return
-    showScreen("Loading the most recent service...", "", "")
-    m.replayTask = startTask("replay", "onReplayResult")
-end sub
-
-function startTask(mode as String, callback as String) as Object
-    task = CreateObject("roSGNode", "VimeoLiveTask")
-    task.mode = mode
+function startTask(fields as Object, callback as String) as Object
+    task = CreateObject("roSGNode", "VimeoTask")
+    task.setFields(fields)
     task.observeField("result", callback)
     task.control = "run"
     return task
 end function
 
+sub checkLive()
+    if m.liveTask <> invalid then return
+    m.liveTask = startTask({ mode: "live" }, "onLiveResult")
+end sub
+
+sub loadArchive()
+    if m.archiveTask <> invalid then return
+    if m.archiveCount = 0 then m.archiveMessage.text = "Loading past services..."
+    m.archiveTask = startTask({ mode: "archive" }, "onArchiveResult")
+end sub
+
+sub onPoll()
+    if m.mode = "live"
+        ' Restart a live stream that has been stuck loading for two checks in a row.
+        if m.video.state = "buffering"
+            m.bufferingStrikes = m.bufferingStrikes + 1
+        else
+            m.bufferingStrikes = 0
+        end if
+        if m.bufferingStrikes >= 2
+            m.bufferingStrikes = 0
+            reconnectLive()
+            return
+        end if
+    end if
+    checkLive()
+
+    ' Refresh the archive now and then, but not while she's browsing it.
+    stale = nowSeconds() - m.archiveLoadedAt > m.cfg.archiveRefreshSeconds
+    if m.mode = "home" and m.focusArea = "hero" and stale then loadArchive()
+end sub
+
 sub onLiveResult()
     result = m.liveTask.result
     m.liveTask = invalid
-    m.lastChecked = clockTime()
-    ' Leave the screen alone while a replay is loading.
-    idleScreen = (m.mode = "idle" and m.replayTask = invalid)
+
+    if m.reconnecting
+        m.reconnecting = false
+        hideLoading()
+        if result.status = "live"
+            m.liveUrl = result.url
+            m.isLive = true
+            startLive()
+            return
+        end if
+        m.mode = "home"
+        showHome()
+    end if
 
     if result.status = "live"
         m.failures = 0
         m.offlineStrikes = 0
-        m.lastError = ""
-        if m.mode <> "live" then startPlayback(result.url, true)
+        clearError()
+        m.liveUrl = result.url
+        m.isLive = true
+        if m.mode <> "live"
+            setHero("live")
+            if m.cfg.autoPlayLive and not m.liveDismissed and m.mode <> "loading" then startLive()
+        end if
     else if result.status = "offline"
         m.failures = 0
-        m.lastError = ""
+        clearError()
         if m.mode = "live"
             ' Don't cut off a stream that is still playing because of one odd answer.
             m.offlineStrikes = m.offlineStrikes + 1
             if m.video.state <> "playing" or m.offlineStrikes >= 2
-                stopPlayback()
-                showEnded()
+                leavePlayback(false)
+                serviceEnded()
             end if
-        else if idleScreen
-            showOffline()
+        else if m.isLive
+            serviceEnded()
+        else if m.heroState <> "ended"
+            setHero("offline")
         end if
     else
         m.failures = m.failures + 1
-        m.lastError = result.code
-        ' A stream that is already playing keeps going through a failed check.
-        if idleScreen
-            if m.failures >= 2 then showTrouble() else showOffline()
+        showError(result.code)
+        ' A stream that is playing keeps going through a failed check.
+        if not m.isLive
+            if m.failures >= 2
+                setHero("trouble")
+            else if m.heroState = "checking"
+                setHero("offline")
+            end if
         end if
     end if
-
-    updateStatus()
-    if m.mode <> "live" then schedulePoll()
 end sub
 
-sub onReplayResult()
-    result = m.replayTask.result
-    m.replayTask = invalid
-    if m.mode <> "idle" then return ' the live service started meanwhile
+sub serviceEnded()
+    m.isLive = false
+    m.liveDismissed = false
+    setHero("ended")
+    loadArchive() ' today's recording shows up once Vimeo has processed it
+end sub
 
-    if result.status = "replay"
-        startPlayback(result.url, false)
-    else
-        m.lastError = result.code
-        showScreen("Sorry, the last service couldn't be loaded.", "When the live service starts, it will play here by itself.", "Press OK to check now.")
-        updateStatus()
+sub onArchiveResult()
+    result = m.archiveTask.result
+    m.archiveTask = invalid
+
+    if result.status <> "ok"
+        showError(result.code)
+        if m.archiveCount = 0 then m.archiveMessage.text = "Past services couldn't be loaded right now. The app will try again later."
+        return
     end if
-end sub
 
-sub onPollTimer()
-    checkLive()
-end sub
-
-sub onLiveCheckTimer()
-    if m.mode <> "live" then return
-    ' Restart a live stream that has been stuck loading for two checks in a row.
-    if m.video.state = "buffering"
-        m.bufferingStrikes = m.bufferingStrikes + 1
-    else
-        m.bufferingStrikes = 0
+    m.archiveLoadedAt = nowSeconds()
+    items = result.items
+    if items.Count() = 0
+        if m.archiveCount = 0 then m.archiveMessage.text = "No past services yet."
+        return
     end if
-    if m.bufferingStrikes >= 2
-        m.bufferingStrikes = 0
-        stopPlayback()
-        showScreen("Reconnecting to the service...", "", "")
-    end if
-    checkLive()
-end sub
 
-sub schedulePoll()
-    m.pollTimer.control = "stop"
-    m.pollTimer.control = "start"
+    root = CreateObject("roSGNode", "ContentNode")
+    row = root.createChild("ContentNode")
+    for each item in items
+        node = row.createChild("ContentNode")
+        node.title = item.title
+        node.description = item.subtitle
+        node.HDPosterUrl = item.thumb
+        node.addFields({ configUrl: item.configUrl, videoUri: item.uri })
+    end for
+    m.archiveRow.content = root
+    m.archiveCount = items.Count()
+    m.archiveRow.visible = true
+    m.archiveMessage.visible = false
 end sub
 
 ' ---------- Playing ----------
 
-sub startPlayback(url as String, isLive as Boolean)
+sub startLive()
+    m.liveDismissed = false
+    m.offlineStrikes = 0
+    m.bufferingStrikes = 0
+    playUrl(m.liveUrl, true, m.cfg.liveTitle)
+    m.mode = "live"
+    m.top.setFocus(true) ' nothing to pause or rewind during the live service
+    m.liveBadge.visible = true
+    m.badgeTimer.control = "start"
+end sub
+
+' Live video stalled or errored: get a fresh link and start again.
+sub reconnectLive()
+    m.video.control = "stop"
+    m.liveBadge.visible = false
+    showLoading("Reconnecting", "Getting the live service back for you.")
+    m.mode = "loading"
+    m.reconnecting = true
+    checkLive()
+end sub
+
+sub onArchiveSelected()
+    playArchiveItem(m.archiveRow.rowItemSelected[1])
+end sub
+
+sub playArchiveItem(index as Integer)
+    if m.archiveRow.content = invalid then return
+    item = m.archiveRow.content.getChild(0).getChild(index)
+    if item = invalid then return
+    m.archiveTitle = item.title
+    showLoading("Loading", item.title)
+    m.mode = "loading"
+    m.playTask = startTask({ mode: "play", configUrl: item.configUrl, videoUri: item.videoUri }, "onPlayResult")
+end sub
+
+sub onPlayResult()
+    result = m.playTask.result
+    m.playTask = invalid
+    if m.mode <> "loading" or m.reconnecting then return ' she pressed Back, or the live service took over
+
+    hideLoading()
+    if result.status = "play"
+        playUrl(result.url, false, m.archiveTitle)
+        m.mode = "archive"
+        m.video.setFocus(true) ' lets her pause and rewind
+    else
+        showError(result.code)
+        m.mode = "home"
+        showHome()
+    end if
+end sub
+
+sub playUrl(url as String, isLive as Boolean, title as String)
     content = CreateObject("roSGNode", "ContentNode")
     content.url = url
     content.streamFormat = "hls"
     content.live = isLive
-    content.title = m.cfg.churchName
+    content.title = title
     content.HttpHeaders = ["Referer: https://player.vimeo.com/"]
 
     m.video.control = "stop"
     m.video.content = content
     m.video.enableTrickPlay = not isLive
+    m.home.visible = false
     m.video.visible = true
     m.video.control = "play"
+end sub
 
-    if isLive
-        m.mode = "live"
-        m.offlineStrikes = 0
-        m.bufferingStrikes = 0
-        m.pollTimer.control = "stop"
-        m.liveCheckTimer.control = "start"
-        m.top.setFocus(true) ' nothing to pause or rewind during the live service
+' Back to the home screen. byUser = she pressed Back.
+sub leavePlayback(byUser as Boolean)
+    if m.mode = "live" and byUser then m.liveDismissed = true
+    m.video.control = "stop"
+    m.video.visible = false
+    m.liveBadge.visible = false
+    hideLoading()
+    m.mode = "home"
+    showHome()
+end sub
+
+sub showHome()
+    m.home.visible = true
+    if m.focusArea = "archive" and m.archiveCount > 0
+        focusArchive()
     else
-        m.mode = "replay"
-        m.video.setFocus(true) ' lets her pause and rewind a recording
+        focusHero()
     end if
 end sub
 
-sub stopPlayback()
-    m.video.control = "stop"
-    m.video.visible = false
-    m.liveCheckTimer.control = "stop"
-    m.mode = "idle"
-    m.top.setFocus(true)
-end sub
-
 sub onVideoState()
+    if m.mode <> "live" and m.mode <> "archive" then return
     state = m.video.state
-    if m.mode = "idle" then return ' leftover events from a stream we already stopped
-
     if state = "playing"
         m.playErrors = 0
     else if state = "error"
         print "[MainScene] video error "; m.video.errorCode; " "; m.video.errorMsg
-        m.lastError = "P" + m.video.errorCode.ToStr()
-        wasLive = (m.mode = "live")
-        stopPlayback()
-        m.playErrors = m.playErrors + 1
-        if wasLive and m.playErrors < 3
-            ' Vimeo's links expire. Get a fresh one and try again right away.
-            showScreen("Reconnecting to the service...", "", "")
-            checkLive()
+        showError("P" + m.video.errorCode.ToStr())
+        if m.mode = "live" and m.playErrors < 2
+            m.playErrors = m.playErrors + 1
+            reconnectLive() ' Vimeo's links expire; a fresh one usually fixes it
         else
-            showTrouble()
-            schedulePoll()
+            wasLive = (m.mode = "live")
+            leavePlayback(false)
+            if wasLive then setHero("trouble")
         end if
-        updateStatus()
     else if state = "finished"
         wasLive = (m.mode = "live")
-        stopPlayback()
-        if wasLive then showEnded() else showOffline()
-        schedulePoll()
+        leavePlayback(false)
+        if wasLive then serviceEnded()
     end if
+end sub
+
+sub onBadgeTimer()
+    m.liveBadge.visible = false
 end sub
 
 ' ---------- Remote ----------
@@ -207,54 +332,130 @@ end sub
 function onKeyEvent(key as String, press as Boolean) as Boolean
     if not press then return false
 
-    if key = "back"
-        if m.mode = "replay"
-            stopPlayback()
-            showOffline()
-            updateStatus()
-            return true
-        end if
-        return false ' leave the app, like any other channel
+    if m.mode = "live" or m.mode = "archive"
+        if key = "back" then leavePlayback(true)
+        return true
     end if
 
-    if m.mode = "idle"
-        if key = "OK"
-            showScreen("Checking for the service...", "", "")
-            checkLive()
-        else if key = "play"
-            loadReplay()
+    if m.mode = "loading"
+        if key = "back"
+            if m.reconnecting then m.liveDismissed = true
+            m.reconnecting = false
+            leavePlayback(true)
         end if
+        return true
     end if
-    ' Swallow every other button so nothing unexpected happens.
+
+    if m.focusArea = "hero"
+        if key = "OK" or key = "play"
+            if m.isLive and m.liveUrl <> ""
+                startLive()
+            else
+                setHero("checking")
+                checkLive()
+            end if
+        else if key = "down"
+            focusArchive()
+        else if key = "back"
+            return false ' leave the app, like any other channel
+        end if
+        return true
+    end if
+
+    ' Archive row (it handles left, right and OK itself).
+    if key = "up" or key = "back"
+        focusHero()
+    else if key = "play"
+        playArchiveItem(m.archiveRow.rowItemFocused[1])
+    end if
     return true
 end function
 
-' ---------- Screens ----------
-
-sub showScreen(headline as String, detail as String, footer as String)
-    m.headline.text = headline
-    m.detail.text = detail
-    m.footer.text = footer
+sub focusHero()
+    m.focusArea = "hero"
+    m.heroRing.visible = true
+    m.top.setFocus(true)
 end sub
 
-sub showOffline()
-    showScreen("The service isn't live right now.", "Leave this on. When the service starts, it will play here by itself.", "Press OK to check now.      Press PLAY to watch the last service.")
+sub focusArchive()
+    if m.archiveCount = 0 then return
+    m.focusArea = "archive"
+    m.heroRing.visible = false
+    m.archiveRow.setFocus(true)
 end sub
 
-sub showEnded()
-    showScreen("The service has ended.", "Thanks for watching! The next service will play here by itself when it starts.", "Press PLAY to watch the last service.")
+' ---------- Live card ----------
+
+sub setHero(state as String)
+    m.heroState = state
+    checkHint = "PRESS OK TO CHECK NOW"
+    if m.cfg.serviceTimes <> "" then checkHint = UCase(m.cfg.serviceTimes) + "  ·  " + checkHint
+
+    if state = "live"
+        setPill("LIVE NOW", "0x9C2D40FF", true)
+        m.heroHeadline.text = "The service is live"
+        m.heroBody.text = "We're glad you're here. Come worship with us."
+        m.heroHint.text = "PRESS OK TO WATCH"
+    else if state = "ended"
+        setPill("NOT LIVE", "0x4E4F4DFF", false)
+        m.heroHeadline.text = "Thanks for watching"
+        m.heroBody.text = "The service has ended. The next one will play here by itself when it starts."
+        m.heroHint.text = checkHint
+    else if state = "trouble"
+        setPill("OFFLINE", "0x4E4F4DFF", false)
+        m.heroHeadline.text = "Having trouble connecting"
+        m.heroBody.text = "It will keep trying by itself. If it doesn't start, ask for help and mention the code at the top right."
+        m.heroHint.text = "PRESS OK TO TRY AGAIN NOW"
+    else if state = "checking"
+        setPill("CHECKING", "0x4E4F4DFF", false)
+        m.heroHeadline.text = "Looking for the service"
+        m.heroBody.text = "This only takes a moment."
+        m.heroHint.text = ""
+    else
+        setPill("NOT LIVE", "0x4E4F4DFF", false)
+        m.heroHeadline.text = "Not live right now"
+        m.heroBody.text = "Leave this on. When the service starts, it will play here by itself."
+        m.heroHint.text = checkHint
+    end if
 end sub
 
-sub showTrouble()
-    showScreen("Having trouble reaching the service.", "It will keep trying by itself. If it doesn't start, ask for help and mention the code at the bottom.", "Press OK to try again now.")
+sub setPill(text as String, color as String, showDot as Boolean)
+    m.pillText.text = text
+    m.pillBg.color = color
+    m.pillDot.visible = showDot
+    left = 22
+    if showDot then left = 50
+    m.pillText.translation = [left, 0]
+    m.pillBg.width = left + m.pillText.boundingRect().width + 22
 end sub
 
-sub updateStatus()
-    text = ""
-    if m.lastChecked <> "" then text = "Last checked " + m.lastChecked
-    if m.lastError <> "" then text = text + "      Code " + m.lastError
-    m.status.text = text
+' ---------- Small helpers ----------
+
+sub showLoading(title as String, detail as String)
+    m.loadingTitle.text = title
+    m.loadingDetail.text = detail
+    m.loading.visible = true
 end sub
+
+sub hideLoading()
+    m.loading.visible = false
+end sub
+
+sub showError(code as String)
+    m.statusCode.text = "Code " + code
+end sub
+
+sub clearError()
+    m.statusCode.text = ""
+end sub
+
+sub updateClock()
+    m.clock.text = clockTime()
+end sub
+
+function nowSeconds() as Integer
+    return CreateObject("roDateTime").AsSeconds()
+end function
 
 function clockTime() as String
     now = CreateObject("roDateTime")

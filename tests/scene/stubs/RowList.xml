@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- Test stand-in for Roku's RowList node. -->
+<component name="RowList" extends="Group">
+    <interface>
+        <field id="itemComponentName" type="string" />
+        <field id="numRows" type="integer" />
+        <field id="itemSize" type="array" />
+        <field id="rowItemSize" type="array" />
+        <field id="rowItemSpacing" type="array" />
+        <field id="showRowLabel" type="array" />
+        <field id="drawFocusFeedback" type="boolean" />
+        <field id="rowFocusAnimationStyle" type="string" />
+        <field id="content" type="node" />
+        <field id="rowItemSelected" type="array" />
+        <field id="rowItemFocused" type="array" value="[0,0]" />
+    </interface>
+</component>

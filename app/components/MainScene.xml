@@ -1,36 +1,98 @@
 <?xml version="1.0" encoding="utf-8" ?>
+<!-- Colors come from The Chapel branding guide:
+     Charcoal 2B2B2A, Navy 19335E, Sky 00A7DD, White, Cloud EBEDE8, Silver C0C2BE,
+     Graphite 4E4F4D, Crimson 9C2D40. Fonts: Montserrat (text), Playfair Display (headlines). -->
 <component name="MainScene" extends="Scene">
     <script type="text/brightscript" uri="pkg:/source/AppConfig.brs" />
     <script type="text/brightscript" uri="MainScene.brs" />
     <children>
-        <Rectangle id="background" width="1920" height="1080" color="0x14213DFF" />
+        <Rectangle id="background" width="1920" height="1080" color="0x2B2B2AFF" />
 
-        <Group id="messageGroup">
-            <Label id="churchName" translation="[0,230]" width="1920" horizAlign="center" color="0xFFFFFFFF">
-                <Font role="font" uri="font:BoldSystemFontFile" size="84" />
+        <Group id="home">
+            <!-- Header -->
+            <Poster id="headerLogo" translation="[96,60]" width="307" height="72" uri="pkg:/images/logo_header.png" />
+            <Label id="clock" translation="[1224,66]" width="600" horizAlign="right" color="0xC0C2BEFF">
+                <Font role="font" uri="pkg:/fonts/Montserrat-Medium.ttf" size="32" />
             </Label>
-            <Label id="subtitle" translation="[0,345]" width="1920" horizAlign="center" color="0xF2C14EFF">
-                <Font role="font" uri="font:SystemFontFile" size="48" />
+            <Label id="statusCode" translation="[1224,114]" width="600" horizAlign="right" color="0xC0C2BEFF">
+                <Font role="font" uri="pkg:/fonts/Montserrat-Regular.ttf" size="22" />
             </Label>
-            <LayoutGroup id="textStack" translation="[960,500]" layoutDirection="vert" horizAlignment="center" itemSpacings="[36]">
-                <Label id="headline" width="1600" horizAlign="center" wrap="true" color="0xFFFFFFFF">
-                    <Font role="font" uri="font:BoldSystemFontFile" size="64" />
+
+            <!-- Live card -->
+            <Group id="hero" translation="[96,176]">
+                <Rectangle id="heroRing" translation="[-8,-8]" width="1744" height="416" color="0x00A7DDFF" />
+                <Rectangle id="heroCard" width="1728" height="400" color="0x19335EFF" />
+                <Group id="pill" translation="[64,56]">
+                    <Rectangle id="pillBg" width="200" height="52" color="0x4E4F4DFF" />
+                    <Rectangle id="pillDot" translation="[22,19]" width="14" height="14" color="0xFFFFFFFF" />
+                    <Label id="pillText" translation="[50,0]" height="52" vertAlign="center" color="0xFFFFFFFF">
+                        <Font role="font" uri="pkg:/fonts/Montserrat-Bold.ttf" size="24" />
+                    </Label>
+                </Group>
+                <Label id="heroHeadline" translation="[64,128]" width="1160" color="0xFFFFFFFF">
+                    <Font role="font" uri="pkg:/fonts/PlayfairDisplay-BoldItalic.ttf" size="76" />
                 </Label>
-                <Label id="detail" width="1500" horizAlign="center" wrap="true" color="0xD6DCE5FF">
-                    <Font role="font" uri="font:SystemFontFile" size="44" />
+                <Label id="heroBody" translation="[64,232]" width="1160" wrap="true" maxLines="2" lineSpacing="6" color="0xEBEDE8FF">
+                    <Font role="font" uri="pkg:/fonts/Montserrat-Regular.ttf" size="34" />
                 </Label>
-            </LayoutGroup>
-            <Label id="footer" translation="[0,900]" width="1920" horizAlign="center" color="0xAEB8C9FF">
-                <Font role="font" uri="font:SystemFontFile" size="34" />
+                <Label id="heroHint" translation="[64,326]" width="1160" color="0x00A7DDFF">
+                    <Font role="font" uri="pkg:/fonts/Montserrat-Bold.ttf" size="26" />
+                </Label>
+                <Poster id="heroMark" translation="[1402,70]" width="262" height="260" uri="pkg:/images/logo_mark.png" />
+            </Group>
+
+            <!-- Sermon archive -->
+            <Label id="archiveHeading" translation="[96,622]" text="SERMON ARCHIVE" color="0xFFFFFFFF">
+                <Font role="font" uri="pkg:/fonts/Montserrat-Bold.ttf" size="28" />
             </Label>
-            <Label id="status" translation="[0,1000]" width="1860" horizAlign="right" color="0x7D8AA3FF">
-                <Font role="font" uri="font:SystemFontFile" size="26" />
+            <Label id="archiveMessage" translation="[96,700]" width="1728" color="0xC0C2BEFF">
+                <Font role="font" uri="pkg:/fonts/Montserrat-Regular.ttf" size="32" />
             </Label>
+            <RowList
+                id="archiveRow"
+                translation="[96,684]"
+                itemComponentName="ArchiveItem"
+                numRows="1"
+                itemSize="[1728,340]"
+                rowItemSize="[[400,340]]"
+                rowItemSpacing="[[32,0]]"
+                showRowLabel="[false]"
+                drawFocusFeedback="false"
+                rowFocusAnimationStyle="floatingFocus"
+                visible="false" />
         </Group>
 
         <Video id="video" width="1920" height="1080" visible="false" enableTrickPlay="false" />
 
-        <Timer id="pollTimer" repeat="false" />
-        <Timer id="liveCheckTimer" repeat="true" />
+        <!-- Shown for a few seconds when the live service starts -->
+        <Group id="liveBadge" visible="false">
+            <Rectangle width="1920" height="150" color="0x2B2B2AFF" opacity="0.85" />
+            <Group translation="[96,49]">
+                <Rectangle id="badgeBg" width="200" height="52" color="0x9C2D40FF" />
+                <Rectangle translation="[22,19]" width="14" height="14" color="0xFFFFFFFF" />
+                <Label id="badgeText" translation="[50,0]" height="52" vertAlign="center" text="LIVE NOW" color="0xFFFFFFFF">
+                    <Font role="font" uri="pkg:/fonts/Montserrat-Bold.ttf" size="24" />
+                </Label>
+            </Group>
+            <Label id="badgeTitle" height="52" vertAlign="center" color="0xFFFFFFFF">
+                <Font role="font" uri="pkg:/fonts/Montserrat-Bold.ttf" size="32" />
+            </Label>
+        </Group>
+
+        <!-- Shown while a video is being fetched -->
+        <Group id="loading" visible="false">
+            <Rectangle width="1920" height="1080" color="0x2B2B2AFF" />
+            <Poster translation="[829,280]" width="262" height="260" uri="pkg:/images/logo_mark.png" />
+            <Label id="loadingTitle" translation="[0,600]" width="1920" horizAlign="center" color="0xFFFFFFFF">
+                <Font role="font" uri="pkg:/fonts/PlayfairDisplay-BoldItalic.ttf" size="60" />
+            </Label>
+            <Label id="loadingDetail" translation="[160,700]" width="1600" horizAlign="center" color="0xC0C2BEFF">
+                <Font role="font" uri="pkg:/fonts/Montserrat-Regular.ttf" size="34" />
+            </Label>
+        </Group>
+
+        <Timer id="pollTimer" repeat="true" />
+        <Timer id="clockTimer" repeat="true" duration="15" />
+        <Timer id="badgeTimer" repeat="false" duration="6" />
     </children>
 </component>
