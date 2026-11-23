@@ -118,6 +118,7 @@ sub init()
     m.holdTicks = 0
     m.idleTicks = 0
     m.pendingItem = invalid
+    m.pendingDeepLink = ""    ' a Roku deep link waiting for the live check or the archive
     m.liveTask = invalid
     m.archiveTask = invalid
     m.playTask = invalid
@@ -248,6 +249,7 @@ sub onLiveResult()
             end if
         end if
     end if
+    handleDeepLink()
 end sub
 
 ' Remembers the details of the live service Vimeo just reported.
@@ -314,6 +316,7 @@ sub onArchiveResult()
     end for
     buildRows()
     if m.mode = "home" then restoreFocus()
+    handleDeepLink()
 end sub
 
 ' ---------- Home rows ----------
@@ -806,6 +809,58 @@ sub stopScrub()
     m.scrubbing = false
     m.scrubHeld = false
     m.overlay.scrubbing = false
+end sub
+
+' ---------- Deep links ----------
+' Roku search (and Roku's certification tests) can open the app straight to a video:
+'   contentId "live"     -> the live service, or the home screen if it isn't live
+'   contentId "1234567"  -> that past service, by its Vimeo video number
+' If the live check or the archive hasn't answered yet, the link waits for it.
+
+sub onDeepLink()
+    link = m.top.deepLink
+    if type(link) <> "roAssociativeArray" then return
+    m.pendingDeepLink = asText(link.contentId)
+    handleDeepLink()
+end sub
+
+sub handleDeepLink()
+    contentId = m.pendingDeepLink
+    if contentId = "" then return
+
+    if contentId = "live"
+        if m.mode = "live"
+            m.pendingDeepLink = "" ' already watching it
+        else if m.isLive and m.liveUrl <> ""
+            m.pendingDeepLink = ""
+            closeForDeepLink()
+            startLive()
+        else if m.heroState <> "checking"
+            m.pendingDeepLink = "" ' not live: the home screen already says so
+            if m.mode = "live" or m.mode = "archive" then leavePlayback(false)
+        end if
+        return
+    end if
+
+    item = m.byUri["/videos/" + contentId]
+    if item <> invalid
+        m.pendingDeepLink = ""
+        closeForDeepLink()
+        playItem(item, progressResumePoint(item.uri, item.duration))
+    else if m.archiveLoadedAt > 0
+        m.pendingDeepLink = "" ' not one of ours; stay on the home screen
+    end if
+end sub
+
+' Clears whatever is on screen before a deep link plays something.
+sub closeForDeepLink()
+    if m.mode = "archive" then saveProgress()
+    if m.mode = "dialog"
+        m.dialog.visible = false
+        m.pendingItem = invalid
+        m.mode = "home"
+    end if
+    stopScrub()
 end sub
 
 ' ---------- Remote ----------

@@ -347,6 +347,27 @@ sub runTests(args as Dynamic)
     expect("back on home leaves app", onKeyEvent("back", true), false)
     expect("scene itself never had focus", m.top.hasFocus(), false)
 
+    ' --- Deep links (Roku search and certification tests) ---
+    deepLink("1")
+    expect("deep link opens that service", m.mode, "loading")
+    expect("deep link: right video", m.current.uri, "/videos/1")
+    deliver("play", { status: "play", url: "https://x/d.m3u8", title: "" })
+    expect("deep link plays", m.mode, "archive")
+    deepLink("999")
+    expect("unknown video: keeps playing", m.mode, "archive")
+    expect("unknown video: link dropped", m.pendingDeepLink, "")
+    deepLink("live")
+    expect("live link while not live: home screen", m.mode, "home")
+    setHero("checking")
+    checkLive()
+    deepLink("live")
+    expect("live link waits for the check", m.pendingDeepLink, "live")
+    deliver("live", { status: "live", url: "https://x/live9.m3u8", uri: "/videos/9" })
+    expect("then plays live", m.mode, "live")
+    expect("link used up", m.pendingDeepLink, "")
+    deepLink("live")
+    expect("live link while watching: no reload", m.video.content.url, "https://x/live9.m3u8")
+
     ' --- Saved progress: limits ---
     progressSet("/videos/9", 10, 3000)
     expect("under 30 sec isn't worth resuming", progressResumePoint("/videos/9", 3000), 0)
@@ -407,6 +428,11 @@ end sub
 ' Long enough after the last press for the video to jump.
 sub settle()
     ticks(4)
+end sub
+
+sub deepLink(contentId as String)
+    m.top.deepLink = { contentId: contentId, mediaType: "episode" }
+    if not m.probeFired then onDeepLink()
 end sub
 
 sub choose(choice as String)

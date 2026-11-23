@@ -4,6 +4,10 @@
      Smoke 727370, Graphite 4E4F4D, Crimson 9C2D40.
      Fonts: Montserrat (text), Playfair Display Bold Italic (headlines). -->
 <component name="MainScene" extends="Scene">
+    <interface>
+        <!-- Set by main.brs for Roku deep links: { contentId, mediaType } -->
+        <field id="deepLink" type="assocarray" onChange="onDeepLink" />
+    </interface>
     <script type="text/brightscript" uri="pkg:/source/AppConfig.brs" />
     <script type="text/brightscript" uri="Util.brs" />
     <script type="text/brightscript" uri="Progress.brs" />

@@ -14,7 +14,9 @@ cp "$ROOT/tests/scene/scene_test.brs" "$WORK/components/"
 sed -i 's|m.top.signalBeacon("AppLaunchComplete")|'"'"' (signalBeacon skipped in tests)|' "$WORK/components/MainScene.brs"
 
 # A copy of MainScene (same layout and script) that also loads the test script.
-sed -e 's|<component name="MainScene" extends="Scene">|<component name="HarnessScene" extends="Scene">\n    <interface><function name="runTests" /></interface>\n    <script type="text/brightscript" uri="scene_test.brs" />|' \
+sed -e 's|<component name="MainScene" extends="Scene">|<component name="HarnessScene" extends="Scene">|' \
+    -e '0,/<interface>/s|<interface>|<interface>\n        <function name="runTests" />|' \
+    -e 's|<script type="text/brightscript" uri="MainScene.brs" />|<script type="text/brightscript" uri="MainScene.brs" />\n    <script type="text/brightscript" uri="scene_test.brs" />|' \
     "$ROOT/app/components/MainScene.xml" > "$WORK/components/HarnessScene.xml"
 
 cat > "$WORK/test_main.brs" <<'EOF'

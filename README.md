@@ -37,13 +37,17 @@ You need a computer on **the same Wi-Fi as the Roku**. If you're setting up Gran
 3. **Open that address in the computer's web browser.** Log in with username `rokudev` and the password you picked.
 4. Click **Upload**, choose `ChapelLive.zip`, then click **Install** (on some models: **Install with zip**).
 5. The app opens on the TV. It also appears on the home screen as **The Chapel Littlestown**.
-   Roku doesn't let you move apps installed this way: pressing **\*** on it only offers close and delete. To make it easier to find, remove apps she doesn't use from the home screen.
+   Roku doesn't let you move apps installed this way: pressing **\*** on it only offers close and delete. To make it easier to find, remove apps she doesn't use from the home screen. The store version (below) can be moved.
 
 **Updating later:** repeat steps 3–4 with the new zip. It replaces the old version.
 
 **Older Roku boxes:** the app needs Roku software 9.1 or newer. Any box that still gets updates has it. Check under **Settings → System → About**.
 
 **Good to know:** a Roku holds only one app installed this way. If it ever disappears (for example after a factory reset), repeat the steps.
+
+## Make it permanent: publish it to the Roku Channel Store
+
+Installing it this way works, but it stays a developer-mode app: it can't be moved, and it needs reinstalling after a reset. Publishing it to the Roku Channel Store makes it a regular app. It never expires, can be moved, updates itself, and anyone at church can install it. It's free, and Roku reviews it first. Step-by-step: **[docs/PUBLISHING.md](docs/PUBLISHING.md)**, with a ready-made [store listing](docs/store-listing.md) and [privacy policy](docs/privacy-policy.md).
 
 ## Test it before Sunday
 
