@@ -44,13 +44,18 @@ function resolveLive() as Object
     clip = vpFindLiveClip(event)
     streamingSeen = clip.streaming
     configUrl = clip.configUrl
+    liveUri = clip.uri
 
     ' Public events: look through the event's videos.
     if configUrl = "" and view <> "embed_only"
         r = fetchVideos(cfg, auth, "uri,config_url,created_time,live.status")
         if r.code = 200
-            configUrl = vpFindVideo(ParseJson(r.body), false)
-            if configUrl <> "" then streamingSeen = true
+            found = vpFindStreamingVideo(ParseJson(r.body))
+            configUrl = found.configUrl
+            if configUrl <> ""
+                streamingSeen = true
+                if liveUri = "" then liveUri = found.uri
+            end if
         else if not clip.known
             ' If the event already said nothing is live, a failure here doesn't matter.
             return errorResult("V3", r)
@@ -82,7 +87,9 @@ function resolveLive() as Object
     isLive = (stream.liveStatus = "started") or (stream.liveStatus = "" and streamingSeen)
     if not isLive then return { status: "offline" }
     if stream.url = "" then return { status: "error", code: "V5-NOHLS" }
-    return { status: "live", url: stream.url, title: stream.title }
+    ' uri and startTime let the screen save her spot if she leaves early: the
+    ' recording keeps the live video's uri.
+    return { status: "live", url: stream.url, title: stream.title, uri: liveUri, startTime: stream.startTime }
 end function
 
 ' ---------- Sermon archive ----------

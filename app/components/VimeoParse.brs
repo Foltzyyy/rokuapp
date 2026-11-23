@@ -28,12 +28,13 @@ function vpToText(v as Dynamic) as String
 end function
 
 ' Looks at the event's clip_to_play / streamable_clip.
-' Returns { known, streaming, configUrl }:
+' Returns { known, streaming, configUrl, uri }:
 '   known     - Vimeo told us the live status of at least one clip
 '   streaming - a clip is live right now
 '   configUrl - player config link for the live clip, if Vimeo gave one
+'   uri       - the live clip's video, e.g. "/videos/123" (its recording keeps it)
 function vpFindLiveClip(eventJson as Dynamic) as Object
-    out = { known: false, streaming: false, configUrl: "" }
+    out = { known: false, streaming: false, configUrl: "", uri: "" }
     for each key in ["clip_to_play", "streamable_clip"]
         status = vpStr(vpGet(eventJson, key + ".live.status"))
         if status <> ""
@@ -41,7 +42,25 @@ function vpFindLiveClip(eventJson as Dynamic) as Object
             if status = "streaming"
                 out.streaming = true
                 if out.configUrl = "" then out.configUrl = vpStr(vpGet(eventJson, key + ".config_url"))
+                if out.uri = "" then out.uri = vpStr(vpGet(eventJson, key + ".uri"))
             end if
+        end if
+    end for
+    return out
+end function
+
+' The video in the event's /videos list that is live right now.
+' Returns { configUrl, uri }, both "" if none.
+function vpFindStreamingVideo(videosJson as Dynamic) as Object
+    out = { configUrl: "", uri: "" }
+    items = vpGet(videosJson, "data")
+    if type(items) <> "roArray" then return out
+    for each v in items
+        url = vpStr(vpGet(v, "config_url"))
+        if url <> "" and vpStr(vpGet(v, "live.status")) = "streaming"
+            out.configUrl = url
+            out.uri = vpStr(vpGet(v, "uri"))
+            return out
         end if
     end for
     return out
@@ -88,12 +107,14 @@ function vpConfigUrlFromHtml(html as String) as String
 end function
 
 ' Reads the HLS (.m3u8) link and live status out of a player config.
-' Returns { url, liveStatus, title }. liveStatus is "started" while live.
+' Returns { url, liveStatus, title, startTime }. liveStatus is "started" while live;
+' startTime is when the live stream began (Unix seconds), or 0 if unknown.
 function vpPickStream(config as Dynamic) as Object
     out = {
         url: ""
         liveStatus: vpStr(vpGet(config, "video.live_event.status"))
         title: vpStr(vpGet(config, "video.title"))
+        startTime: vpToInt(vpGet(config, "video.live_event.ingest.start_time"))
     }
 
     hls = vpGet(config, "request.files.hls")

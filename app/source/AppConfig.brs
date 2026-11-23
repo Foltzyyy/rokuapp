@@ -11,10 +11,11 @@ function AppConfig() as Object
         ' Shown at the top of the screen while the live service plays.
         liveTitle: "The Chapel Littlestown"
 
-        ' Optional line on the live card, e.g. "Sundays at 10:30 AM". Leave empty to hide it.
-        serviceTimes: ""
+        ' Line on the live card. Leave empty to hide it.
+        serviceTimes: "Sundays at 10:30 AM"
 
-        ' Start the live service by itself when it begins (unless she pressed Back to leave it).
+        ' Go full screen by itself when the service begins (unless she pressed Back to
+        ' leave it). If false, the service plays in the live card until she presses OK.
         autoPlayLive: true
 
         ' How many past services to show in the sermon archive.

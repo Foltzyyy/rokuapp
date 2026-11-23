@@ -54,3 +54,17 @@ function fmtToday() as String
     now.ToLocalTime()
     return fmtDate(now)
 end function
+
+' Safe reads of values that might be missing (invalid) or the wrong type.
+function asText(v as Dynamic) as String
+    t = type(v)
+    if t = "String" or t = "roString" then return v
+    return ""
+end function
+
+function asInt(v as Dynamic) as Integer
+    t = type(v)
+    if t = "Integer" or t = "roInt" or t = "roInteger" or t = "LongInteger" or t = "roLongInteger" then return v
+    if t = "Float" or t = "roFloat" or t = "Double" or t = "roDouble" then return Int(v)
+    return 0
+end function

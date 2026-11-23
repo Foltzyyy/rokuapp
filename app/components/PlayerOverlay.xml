@@ -9,6 +9,8 @@
         <field id="paused" type="boolean" onChange="onMode" />
         <field id="position" type="float" onChange="onProgress" />
         <field id="duration" type="float" onChange="onProgress" />
+        <!-- Holding Left/Right: shows where she'll land, in a bubble over the playhead -->
+        <field id="scrubbing" type="boolean" onChange="onMode" />
     </interface>
     <script type="text/brightscript" uri="Util.brs" />
     <script type="text/brightscript" uri="PlayerOverlay.brs" />
@@ -34,6 +36,12 @@
             <Rectangle id="track" width="1728" height="8" color="0x727370FF" />
             <Rectangle id="fill" width="0" height="8" color="0x00A7DDFF" />
             <Rectangle id="knob" translation="[-10,-6]" width="20" height="20" color="0xFFFFFFFF" />
+            <Group id="bubble" translation="[0,-72]" visible="false">
+                <Rectangle width="160" height="52" color="0xFFFFFFFF" />
+                <Label id="bubbleText" width="160" height="52" horizAlign="center" vertAlign="center" color="0x2B2B2AFF">
+                    <Font role="font" uri="pkg:/fonts/Montserrat-Bold.ttf" size="30" />
+                </Label>
+            </Group>
         </Group>
         <Label id="elapsed" translation="[96,982]" color="0xFFFFFFFF">
             <Font role="font" uri="pkg:/fonts/Montserrat-Medium.ttf" size="28" />

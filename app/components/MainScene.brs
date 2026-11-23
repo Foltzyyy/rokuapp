@@ -2,18 +2,31 @@
 '
 ' Home: the live card (focused at start), then "Continue watching" (services she
 ' started) and the "Sermon archive" (past services). Moving down to the rows slides
-' the live card up out of the way.
+' the live card up out of the way. While the service is live it plays inside the
+' live card; OK makes it full screen, and Back shrinks it back into the card.
 '
-' Playing: the app's own controls (PlayerOverlay). OK or Play pauses and resumes,
-' Left/Rewind skips back 10 seconds, Right/Fast-forward skips ahead 30, Back goes
-' home. Where she stopped in each past service is remembered (Progress.brs).
+' Playing: the app's own controls (PlayerOverlay). OK or Play pauses and resumes.
+' Left/Right (or Rewind/Fast-forward) skip 10 s back / 30 s ahead per tap; holding
+' one slides the playhead along the timeline, faster the longer it's held. The video
+' only jumps once she stops pressing, so several taps cost one load, not several.
+' Back goes home.
 '
-' The live service starts by itself when it begins (AppConfig autoPlayLive), even
-' from a past service, unless she pressed Back to leave it.
+' Remembered on the Roku (Progress.brs): where she stopped in each past service, and
+' how far she got in a live service she left early (that one shows up under
+' Continue watching once Vimeo posts the recording).
 '
-' m.mode:      "home" | "live" | "archive" (watching a past service)
-'              | "loading" (getting a video link) | "dialog" (resume or start over?)
-' m.focusArea: "hero" | "continue" | "archive"
+' The live service goes full screen by itself when it begins (AppConfig
+' autoPlayLive), even from a past service, unless she pressed Back to leave it.
+'
+' Focus: each area has its own node that takes remote focus: the live card group,
+' the two rows, the dialog, and "keys" during playback and loading. Never focus the
+' Scene itself: on a Roku that doesn't take focus away from a row, which then keeps
+' receiving OK, Left and Right.
+'
+' m.mode:       "home" | "live" | "archive" (watching a past service)
+'               | "loading" (getting a video link) | "dialog" (resume or start over?)
+' m.focusArea:  "hero" | "continue" | "archive"
+' m.previewing: the live service is playing inside the live card (m.mode = "home")
 
 sub init()
     m.cfg = AppConfig()
@@ -23,7 +36,10 @@ sub init()
     m.scroller = m.top.findNode("scroller")
     m.clock = m.top.findNode("clock")
     m.statusCode = m.top.findNode("statusCode")
+    m.hero = m.top.findNode("hero")
     m.heroRing = m.top.findNode("heroRing")
+    m.heroMark = m.top.findNode("heroMark")
+    m.previewBg = m.top.findNode("previewBg")
     m.pillBg = m.top.findNode("pillBg")
     m.pillDot = m.top.findNode("pillDot")
     m.pillText = m.top.findNode("pillText")
@@ -35,6 +51,7 @@ sub init()
     m.archiveSection = m.top.findNode("archiveSection")
     m.archiveMessage = m.top.findNode("archiveMessage")
     m.archiveRow = m.top.findNode("archiveRow")
+    m.keys = m.top.findNode("keys")
     m.video = m.top.findNode("video")
     m.overlay = m.top.findNode("overlay")
     m.loading = m.top.findNode("loading")
@@ -55,6 +72,8 @@ sub init()
     m.clockTimer.control = "start"
     m.overlayTimer = m.top.findNode("overlayTimer")
     m.overlayTimer.observeField("fire", "onOverlayTimer")
+    m.scrubTimer = m.top.findNode("scrubTimer")
+    m.scrubTimer.observeField("fire", "onScrubTick")
 
     m.video.observeField("state", "onVideoState")
     m.video.observeField("position", "onVideoPosition")
@@ -69,12 +88,17 @@ sub init()
     m.heroState = ""
     m.isLive = false
     m.liveUrl = ""
+    m.liveUri = ""            ' the live service's video (its recording keeps this)
+    m.liveStart = 0           ' when the live service began, from Vimeo (Unix seconds)
+    m.liveSeenAt = 0          ' when this app first saw it live (fallback for liveStart)
     m.liveDismissed = false   ' she pressed Back during this live service
+    m.previewing = false
     m.reconnecting = false
     m.failures = 0            ' failed live checks in a row
     m.offlineStrikes = 0      ' "not live" answers in a row while watching
     m.bufferingStrikes = 0    ' checks in a row that found the live video stuck loading
     m.playErrors = 0
+    m.endedAt = 0
     m.archiveItems = []
     m.byUri = {}
     m.archiveCount = 0
@@ -83,10 +107,16 @@ sub init()
     m.archiveLoadedAt = 0
     m.rowsScroll = 0
     m.scrollTarget = 0
-    m.current = invalid       ' what's playing: { uri, title, subtitle, duration, isLive, startAt }
+    m.current = invalid       ' what's playing: { uri, title, subtitle, duration, isLive, startAt, finished }
     m.paused = false
     m.hasPlayed = false
     m.lastFlush = 0
+    m.scrubbing = false       ' skipping: the playhead is moving, the video hasn't jumped yet
+    m.scrubHeld = false       ' Left/Right is held down
+    m.scrubDir = 0
+    m.scrubPos = 0
+    m.holdTicks = 0
+    m.idleTicks = 0
     m.pendingItem = invalid
     m.liveTask = invalid
     m.archiveTask = invalid
@@ -122,8 +152,8 @@ sub loadArchive()
 end sub
 
 sub onPoll()
-    if m.mode = "live" and not m.paused
-        ' Restart a live stream that has been stuck loading for two checks in a row.
+    ' Restart a live stream that has been stuck loading for two checks in a row.
+    if (m.mode = "live" and not m.paused) or m.previewing
         if m.video.state = "buffering"
             m.bufferingStrikes = m.bufferingStrikes + 1
         else
@@ -131,10 +161,18 @@ sub onPoll()
         end if
         if m.bufferingStrikes >= 2
             m.bufferingStrikes = 0
-            reconnectLive()
-            return
+            if m.previewing
+                stopPreview(false) ' the check below starts it again with a fresh link
+            else
+                reconnectLive()
+                return
+            end if
         end if
     end if
+
+    ' Keep her spot in the live service, in case the app is closed with Home.
+    if m.mode = "live" or m.previewing then saveLiveProgress()
+
     checkLive()
 
     ' Refresh the archive now and then, but not while she's browsing it.
@@ -150,12 +188,19 @@ sub onLiveResult()
         m.reconnecting = false
         hideLoading()
         if result.status = "live"
-            m.liveUrl = result.url
-            m.isLive = true
+            noteLive(result)
             startLive()
             return
         end if
+        m.video.visible = false
         m.mode = "home"
+        if result.status = "offline"
+            ' It ended while she was watching.
+            m.isLive = false
+            serviceEnded(true)
+            showHome()
+            return
+        end if
         showHome()
     end if
 
@@ -163,28 +208,33 @@ sub onLiveResult()
         m.failures = 0
         m.offlineStrikes = 0
         clearError()
-        m.liveUrl = result.url
-        m.isLive = true
+        noteLive(result)
         if m.mode <> "live"
             setHero("live")
             canStart = (m.mode = "home" or m.mode = "archive")
-            if m.cfg.autoPlayLive and not m.liveDismissed and canStart then startLive()
+            if m.cfg.autoPlayLive and not m.liveDismissed and canStart
+                startLive()
+            else if m.mode = "home"
+                startPreview()
+            end if
         end if
     else if result.status = "offline"
         m.failures = 0
         clearError()
-        if m.mode = "live"
+        watching = (m.mode = "live" or m.previewing)
+        if watching
             ' Don't cut off a stream that is still going because of one odd answer.
             m.offlineStrikes = m.offlineStrikes + 1
             state = m.video.state
             if (state <> "playing" and state <> "paused") or m.offlineStrikes >= 2
-                leavePlayback(false)
-                serviceEnded()
+                m.isLive = false
+                if m.mode = "live" then leavePlayback(false) else stopPreview(false)
+                serviceEnded(true)
             end if
         else if m.isLive
-            serviceEnded()
-        else if m.heroState <> "ended"
-            setHero("offline")
+            serviceEnded(false)
+        else if m.heroState <> "ended" or nowSeconds() - m.endedAt > 7200
+            setHero("offline") ' "Thanks for watching" turns back into this after 2 hours
         end if
     else
         m.failures = m.failures + 1
@@ -200,11 +250,45 @@ sub onLiveResult()
     end if
 end sub
 
-sub serviceEnded()
+' Remembers the details of the live service Vimeo just reported.
+sub noteLive(result as Object)
+    m.isLive = true
+    m.liveUrl = result.url
+    uri = asText(result.uri)
+    if uri <> "" then m.liveUri = uri
+    now = nowSeconds()
+    start = asInt(result.startTime)
+    if start > now - 6 * 3600 and start <= now + 60 then m.liveStart = start
+    if m.liveSeenAt = 0 then m.liveSeenAt = now
+end sub
+
+' watching = she was watching when it ended, so she saw it through.
+sub serviceEnded(watching as Boolean)
+    if watching and m.liveUri <> ""
+        progressClear(m.liveUri)
+        progressFlush()
+    end if
     m.isLive = false
     m.liveDismissed = false
+    m.liveUri = ""
+    m.liveStart = 0
+    m.liveSeenAt = 0
+    m.endedAt = nowSeconds()
     setHero("ended")
     loadArchive() ' today's recording shows up once Vimeo has processed it
+end sub
+
+' Saves how far into the live service she is, so if she leaves early the recording
+' shows up under Continue watching at about that spot.
+sub saveLiveProgress()
+    if m.liveUri = "" or not m.isLive then return
+    start = m.liveStart
+    if start = 0 then start = m.liveSeenAt
+    if start = 0 then return
+    position = nowSeconds() - start
+    if position < progressMinSeconds() then return
+    progressSet(m.liveUri, position, 0)
+    progressFlush()
 end sub
 
 sub onArchiveResult()
@@ -289,12 +373,14 @@ end sub
 sub focusHero()
     m.focusArea = "hero"
     m.heroRing.visible = true
-    m.top.setFocus(true)
+    m.hero.setFocus(true)
     scrollTo(0)
+    startPreview()
 end sub
 
 sub focusContinue()
     if m.continueCount = 0 then return
+    stopPreview(true)
     m.focusArea = "continue"
     m.heroRing.visible = false
     m.continueRow.setFocus(true)
@@ -303,6 +389,7 @@ end sub
 
 sub focusArchive()
     if m.archiveCount = 0 then return
+    stopPreview(true)
     m.focusArea = "archive"
     m.heroRing.visible = false
     m.archiveRow.setFocus(true)
@@ -330,6 +417,52 @@ end sub
 sub showHome()
     m.home.visible = true
     restoreFocus()
+end sub
+
+' ---------- Live service in the live card ----------
+
+function liveItem() as Object
+    return { uri: m.liveUri, title: m.cfg.liveTitle, subtitle: fmtToday(), duration: 0, isLive: true, startAt: 0, finished: false }
+end function
+
+' Plays the live service inside the live card (with sound) while the card is focused.
+sub startPreview()
+    if m.previewing or not m.isLive or m.liveUrl = "" then return
+    if m.mode <> "home" or m.focusArea <> "hero" then return
+    m.current = liveItem()
+    m.previewing = true
+    m.bufferingStrikes = 0
+    m.offlineStrikes = 0
+    setVideoFullScreen(false)
+    m.previewBg.visible = true
+    m.heroMark.visible = false
+    loadVideo(m.liveUrl)
+    setSpinner(true, 1420, 328)
+end sub
+
+' saveSpot: she's moving away while it's still live, so remember how far she got.
+sub stopPreview(saveSpot as Boolean)
+    if not m.previewing then return
+    if saveSpot then saveLiveProgress()
+    m.previewing = false
+    m.video.control = "stop"
+    m.video.visible = false
+    m.previewBg.visible = false
+    m.heroMark.visible = true
+    setSpinner(false, 912, 492)
+end sub
+
+sub setVideoFullScreen(full as Boolean)
+    if full
+        m.video.translation = [0, 0]
+        m.video.width = 1920
+        m.video.height = 1080
+    else
+        ' The right-hand side of the live card.
+        m.video.translation = [1113, 176]
+        m.video.width = 711
+        m.video.height = 400
+    end if
 end sub
 
 ' ---------- Choosing a past service ----------
@@ -392,6 +525,7 @@ sub onDialogChoice()
 end sub
 
 sub playItem(item as Object, startAt as Integer)
+    stopPreview(true)
     m.current = { uri: item.uri, title: item.title, subtitle: item.subtitle, duration: item.duration, isLive: false, startAt: startAt, finished: false }
     showLoading("Loading", item.title)
     m.mode = "loading"
@@ -421,9 +555,18 @@ sub startLive()
     m.liveDismissed = false
     m.offlineStrikes = 0
     m.bufferingStrikes = 0
-    m.current = { uri: "", title: m.cfg.liveTitle, subtitle: fmtToday(), duration: 0, isLive: true, startAt: 0, finished: false }
     m.mode = "live"
-    playUrl(m.liveUrl)
+    if m.previewing
+        ' Already playing in the live card: just make it big.
+        m.previewing = false
+        m.previewBg.visible = false
+        m.heroMark.visible = true
+        enterFullScreen()
+        setSpinner(not m.hasPlayed, 912, 492)
+    else
+        m.current = liveItem()
+        playUrl(m.liveUrl)
+    end if
 end sub
 
 ' Live video stalled or errored: get a fresh link and start again.
@@ -436,7 +579,15 @@ sub reconnectLive()
     checkLive()
 end sub
 
+' Starts m.current from the beginning (or its startAt), full screen.
 sub playUrl(url as String)
+    setVideoFullScreen(true)
+    loadVideo(url)
+    enterFullScreen()
+    setSpinner(true, 912, 492)
+end sub
+
+sub loadVideo(url as String)
     item = m.current
     content = CreateObject("roSGNode", "ContentNode")
     content.url = url
@@ -448,33 +599,51 @@ sub playUrl(url as String)
 
     m.video.control = "stop"
     m.video.content = content
-    m.home.visible = false
     m.video.visible = true
     m.video.control = "play"
-    m.top.setFocus(true) ' this screen handles every button during playback
     m.paused = false
     m.hasPlayed = false
-    m.lastFlush = nowSeconds()
+end sub
 
+' Switches to the player screen: video full screen, controls showing.
+sub enterFullScreen()
+    item = m.current
+    setVideoFullScreen(true)
+    m.home.visible = false
+    m.keys.setFocus(true) ' every button now comes to this screen
+    m.lastFlush = nowSeconds()
     m.overlay.title = item.title
     m.overlay.subtitle = item.subtitle
     m.overlay.isLive = item.isLive
-    m.overlay.paused = false
+    m.overlay.paused = m.paused
+    m.overlay.scrubbing = false
     m.overlay.duration = item.duration
     m.overlay.position = item.startAt
     showOverlay()
-    setSpinner(true, 492)
 end sub
 
 ' Back to the home screen. byUser = she pressed Back.
 sub leavePlayback(byUser as Boolean)
+    wasLive = (m.mode = "live")
+    stopScrub()
     if m.mode = "archive" then saveProgress()
-    if m.mode = "live" and byUser then m.liveDismissed = true
-    m.video.control = "stop"
-    m.video.visible = false
+    if wasLive and byUser then m.liveDismissed = true
     hideOverlay()
     hideLoading()
     m.mode = "home"
+
+    if wasLive and byUser and m.isLive and m.focusArea = "hero"
+        ' Shrink the live service back into the live card; it keeps playing.
+        setVideoFullScreen(false)
+        if m.paused then m.video.control = "resume"
+        m.previewing = true
+        m.previewBg.visible = true
+        m.heroMark.visible = false
+    else
+        if wasLive and m.isLive then saveLiveProgress()
+        m.video.control = "stop"
+        m.video.visible = false
+    end if
     m.paused = false
     buildRows()
     showHome()
@@ -487,9 +656,7 @@ sub saveProgress()
     if item.finished
         progressClear(item.uri)
     else if m.hasPlayed
-        duration = m.video.duration
-        if duration <= 0 then duration = item.duration
-        progressSet(item.uri, m.video.position, duration)
+        progressSet(item.uri, m.video.position, playDuration())
     else
         return ' never got going; keep the old resume point
     end if
@@ -497,21 +664,46 @@ sub saveProgress()
     m.lastFlush = nowSeconds()
 end sub
 
+function playDuration() as Float
+    duration = m.video.duration
+    if duration <= 0 and m.current <> invalid then duration = m.current.duration
+    return duration
+end function
+
 sub onVideoState()
-    if m.mode <> "live" and m.mode <> "archive" then return
     state = m.video.state
+
+    if m.previewing
+        if state = "playing"
+            m.hasPlayed = true
+            setSpinner(false, 1420, 328)
+        else if state = "buffering"
+            setSpinner(true, 1420, 328)
+        else if state = "error"
+            print "[MainScene] preview error "; m.video.errorCode; " "; m.video.errorMsg
+            showError("P" + m.video.errorCode.ToStr())
+            stopPreview(false) ' the next live check tries again
+        else if state = "finished"
+            m.isLive = false
+            stopPreview(false)
+            serviceEnded(true)
+        end if
+        return
+    end if
+
+    if m.mode <> "live" and m.mode <> "archive" then return
     if state = "playing"
         m.playErrors = 0
         m.hasPlayed = true
-        setSpinner(false, 492)
+        setSpinner(false, 912, 492)
         if m.paused
             m.paused = false
             m.overlay.paused = false
         end if
     else if state = "buffering"
-        setSpinner(true, 492)
+        setSpinner(true, 912, 492)
     else if state = "paused"
-        setSpinner(false, 492)
+        setSpinner(false, 912, 492)
     else if state = "error"
         print "[MainScene] video error "; m.video.errorCode; " "; m.video.errorMsg
         showError("P" + m.video.errorCode.ToStr())
@@ -524,16 +716,20 @@ sub onVideoState()
             if wasLive then setHero("trouble")
         end if
     else if state = "finished"
-        wasLive = (m.mode = "live")
-        if not wasLive then m.current.finished = true
-        leavePlayback(false)
-        if wasLive then serviceEnded()
+        if m.mode = "live"
+            m.isLive = false
+            leavePlayback(false)
+            serviceEnded(true)
+        else
+            m.current.finished = true
+            leavePlayback(false)
+        end if
     end if
 end sub
 
 sub onVideoPosition()
     if m.mode <> "live" and m.mode <> "archive" then return
-    m.overlay.position = m.video.position
+    if not m.scrubbing then m.overlay.position = m.video.position
     ' Save now and then, so a power cut loses at most a minute.
     if m.mode = "archive" and m.hasPlayed and nowSeconds() - m.lastFlush >= 60 then saveProgress()
 end sub
@@ -542,12 +738,85 @@ sub onVideoDuration()
     if m.video.duration > 0 then m.overlay.duration = m.video.duration
 end sub
 
+' ---------- Skipping ----------
+' Each tap moves the playhead on screen right away (10 s back, 30 s ahead). Holding
+' keeps it moving, faster the longer it's held. The video jumps once she has stopped
+' pressing for about half a second, so a run of taps or a long hold is one load.
+' Roku sends a "press" when a button goes down and a "release" when it comes up;
+' scrubTimer (every 0.15 s) does the moving and the waiting.
+
+sub skipPressed(direction as Integer)
+    if m.scrubHeld and m.scrubDir = direction then return ' a repeated press while held
+    if not m.scrubbing
+        m.scrubbing = true
+        m.scrubPos = m.video.position
+        m.overlay.scrubbing = true
+        m.scrubTimer.control = "start"
+    end if
+    m.scrubHeld = true
+    m.scrubDir = direction
+    m.holdTicks = 0
+    m.idleTicks = 0
+    if direction < 0 then moveScrub(-10) else moveScrub(30)
+    showOverlay()
+end sub
+
+sub skipReleased()
+    m.scrubHeld = false
+    m.idleTicks = 0
+end sub
+
+sub onScrubTick()
+    if not m.scrubbing then return
+    if m.scrubHeld
+        m.holdTicks = m.holdTicks + 1
+        if m.holdTicks > 600 then skipReleased() ' never heard the button come up
+        if m.holdTicks < 4 then return ' not held long enough yet to count as holding
+        stepSize = 10
+        if m.holdTicks > 16 then stepSize = 30
+        if m.holdTicks > 36 then stepSize = 60
+        moveScrub(m.scrubDir * stepSize)
+        showOverlay()
+    else
+        m.idleTicks = m.idleTicks + 1
+        if m.idleTicks >= 4 then commitScrub()
+    end if
+end sub
+
+sub moveScrub(seconds as Integer)
+    duration = playDuration()
+    target = m.scrubPos + seconds
+    if duration > 0 and target > duration - 5 then target = duration - 5
+    if target < 0 then target = 0
+    m.scrubPos = target
+    m.overlay.position = target
+end sub
+
+' Jumps the video to where the playhead was moved.
+sub commitScrub()
+    if not m.scrubbing then return
+    stopScrub()
+    m.video.seek = m.scrubPos
+    m.overlay.position = m.scrubPos
+    showOverlay()
+end sub
+
+sub stopScrub()
+    m.scrubTimer.control = "stop"
+    m.scrubbing = false
+    m.scrubHeld = false
+    m.overlay.scrubbing = false
+end sub
+
 ' ---------- Remote ----------
 
 function onKeyEvent(key as String, press as Boolean) as Boolean
+    if m.mode = "live" or m.mode = "archive"
+        if press then return onPlayerKey(key)
+        if isSkipKey(key) then skipReleased()
+        return true
+    end if
     if not press then return false
-
-    if m.mode = "live" or m.mode = "archive" then return onPlayerKey(key)
 
     if m.mode = "loading"
         if key = "back"
@@ -571,6 +840,7 @@ function onKeyEvent(key as String, press as Boolean) as Boolean
         else if key = "down"
             if m.continueCount > 0 then focusContinue() else focusArchive()
         else if key = "back"
+            if m.previewing then saveLiveProgress()
             progressFlush()
             return false ' leave the app, like any other channel
         end if
@@ -599,16 +869,20 @@ function onKeyEvent(key as String, press as Boolean) as Boolean
     return true
 end function
 
+function isSkipKey(key as String) as Boolean
+    return key = "left" or key = "right" or key = "rewind" or key = "fastforward" or key = "replay"
+end function
+
 function onPlayerKey(key as String) as Boolean
     isArchive = (m.mode = "archive")
     if key = "back"
         leavePlayback(true)
     else if key = "OK" or key = "play"
-        togglePause()
-    else if (key = "left" or key = "rewind" or key = "replay") and isArchive
-        seekBy(-10)
-    else if (key = "right" or key = "fastforward") and isArchive
-        seekBy(30)
+        if m.scrubbing then commitScrub() else togglePause()
+    else if isArchive and (key = "left" or key = "rewind" or key = "replay")
+        skipPressed(-1)
+    else if isArchive and (key = "right" or key = "fastforward")
+        skipPressed(1)
     else
         showOverlay()
     end if
@@ -628,18 +902,8 @@ sub togglePause()
     showOverlay()
 end sub
 
-sub seekBy(seconds as Integer)
-    duration = m.video.duration
-    if duration <= 0 then duration = m.current.duration
-    target = m.video.position + seconds
-    if duration > 0 and target > duration - 5 then target = duration - 5
-    if target < 0 then target = 0
-    m.video.seek = target
-    m.overlay.position = target
-    showOverlay()
-end sub
-
-' The controls show on any button and fade after 5 seconds (they stay while paused).
+' The controls show on any button and fade after 5 seconds (they stay while paused
+' or skipping).
 sub showOverlay()
     m.overlay.visible = true
     m.overlayTimer.control = "stop"
@@ -647,7 +911,7 @@ sub showOverlay()
 end sub
 
 sub onOverlayTimer()
-    if not m.paused then m.overlay.visible = false
+    if not m.paused and not m.scrubbing then m.overlay.visible = false
 end sub
 
 sub hideOverlay()
@@ -666,7 +930,7 @@ sub setHero(state as String)
         setPill("LIVE NOW", "0x9C2D40FF", true)
         m.heroHeadline.text = "The service is live"
         m.heroBody.text = "We're glad you're here. Come worship with us."
-        m.heroHint.text = "PRESS OK TO WATCH"
+        m.heroHint.text = "PRESS OK TO WATCH FULL SCREEN"
     else if state = "ended"
         setPill("NOT LIVE", "0x4E4F4DFF", false)
         m.heroHeadline.text = "Thanks for watching"
@@ -675,7 +939,7 @@ sub setHero(state as String)
     else if state = "trouble"
         setPill("OFFLINE", "0x4E4F4DFF", false)
         m.heroHeadline.text = "Having trouble connecting"
-        m.heroBody.text = "It will keep trying by itself. If it doesn't start, ask for help and mention the code at the top right."
+        m.heroBody.text = "It keeps trying by itself. If it doesn't start, mention the code at the top right."
         m.heroHint.text = "PRESS OK TO TRY AGAIN NOW"
     else if state = "checking"
         setPill("CHECKING", "0x4E4F4DFF", false)
@@ -706,16 +970,17 @@ sub showLoading(title as String, detail as String)
     m.loadingTitle.text = title
     m.loadingDetail.text = detail
     m.loading.visible = true
-    setSpinner(true, 790)
+    m.keys.setFocus(true) ' so a row behind this doesn't get OK presses
+    setSpinner(true, 912, 790)
 end sub
 
 sub hideLoading()
     m.loading.visible = false
-    setSpinner(false, 492)
+    setSpinner(false, 912, 492)
 end sub
 
-sub setSpinner(visible as Boolean, y as Integer)
-    m.spinner.translation = [912, y]
+sub setSpinner(visible as Boolean, x as Integer, y as Integer)
+    m.spinner.translation = [x, y]
     m.spinner.visible = visible
     if visible then m.spinAnim.control = "start" else m.spinAnim.control = "stop"
 end sub

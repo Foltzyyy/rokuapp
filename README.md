@@ -4,9 +4,10 @@ A Roku app for The Chapel Littlestown's Vimeo livestream and sermon archive, sty
 
 **The home screen**
 - **Live card** (selected when the app opens) says whether the service is live.
-  - When the service starts, it **plays full screen by itself**, even if she's watching a past service.
-  - OK on this card watches the live service, or checks again right now if it isn't live.
-- **Continue watching** lists past services she started, newest first, with how much time is left. OK picks up exactly where she stopped.
+  - When the service starts, it **goes full screen by itself**, even if she's watching a past service.
+  - While it's live, **the service plays right inside the card**. OK makes it full screen, and Back from full screen shrinks it back into the card.
+  - When it isn't live, the card shows the service time, and OK checks again right now.
+- **Continue watching** lists services she started, newest first, with how much time is left. OK picks up exactly where she stopped. This includes a live service she left early: its recording shows up here once Vimeo posts it.
 - **Sermon archive** lists past services from the Vimeo event, newest first. Tiles show a blue bar for how much she's watched. Opening one she's partway through asks **Resume from 25:12** or **Start from the beginning**.
 - **Moving around:** Up and Down move between the live card and the rows, and Left/Right move along a row. Back on a row goes to the live card, and Back on the live card leaves the app.
 
@@ -15,12 +16,13 @@ A Roku app for The Chapel Littlestown's Vimeo livestream and sermon archive, sty
 | Button | What it does |
 |---|---|
 | **OK** or **Play/Pause** | Pause and resume (the live service too) |
-| **Left**, **Rewind** or **Instant replay** | Back 10 seconds (past services) |
-| **Right** or **Fast-forward** | Ahead 30 seconds (past services) |
+| **Left** / **Right** (or **Rewind** / **Fast-forward**) | Tap: back 10 seconds / ahead 30 seconds. Hold: the playhead slides along the timeline, faster the longer you hold, with a time bubble showing where you'll land. |
 | **Up**, **Down** or **\*** | Show the controls (they fade after 5 seconds, and stay while paused) |
-| **Back** | Back to the home screen (she won't be pulled back into a live service she left) |
+| **Back** | Back to the home screen |
 
-**Where she stopped is saved on the Roku itself.** It's saved when she pauses, when she leaves a video, and every minute while it plays, so it survives turning the TV off. Past services she finishes, or watches to the last minute of, drop off Continue watching.
+When skipping, the video jumps only once you stop pressing (about half a second after the last press), so several taps or a long hold load the video once instead of every time. OK jumps right away. A Roku can't store a whole service ahead of time (too big for its memory), so each jump does need a moment to load.
+
+**Where she stopped is saved on the Roku itself.** It's saved when she pauses, when she leaves a video, and every minute while it plays, so it survives turning the TV off. Services she finishes, or watches to the last minute of, drop off Continue watching.
 
 ## Install it on the Roku (one time, about 15 minutes)
 
@@ -34,8 +36,8 @@ You need a computer on **the same Wi-Fi as the Roku**. If you're setting up Gran
    - If it won't enable, the Roku account linked to the box may need a free sign-up at developer.roku.com first.
 3. **Open that address in the computer's web browser.** Log in with username `rokudev` and the password you picked.
 4. Click **Upload**, choose `ChapelLive.zip`, then click **Install** (on some models: **Install with zip**).
-5. The app opens on the TV. It also appears on the home screen as **The Chapel Littlestown**, usually at the end of the list.
-   To move it to the top, highlight it, press **\***, and choose **Move channel**.
+5. The app opens on the TV. It also appears on the home screen as **The Chapel Littlestown**.
+   Roku doesn't let you move apps installed this way: pressing **\*** on it only offers close and delete. To make it easier to find, remove apps she doesn't use from the home screen.
 
 **Updating later:** repeat steps 3–4 with the new zip. It replaces the old version.
 
@@ -46,9 +48,9 @@ You need a computer on **the same Wi-Fi as the Roku**. If you're setting up Gran
 ## Test it before Sunday
 
 1. Open the app. The live card should say **Not live right now**, and the sermon archive should fill with past services. That means the app can reach Vimeo.
-2. Press **Down**, then **OK** on a past service. It should play. Try **OK** (pause), **Right** (skip ahead) and **Back**.
+2. Press **Down**, then **OK** on a past service. It should play. Try **OK** (pause), tapping and holding **Right** (skip ahead) and **Back**.
 3. Back on the home screen, **Continue watching** should show that service. Open it, and it should pick up where you stopped.
-4. The real test is the next live service.
+4. During the next live service: it should go full screen by itself. Press **Back**, and it should keep playing in the live card. **OK** makes it full screen again.
 
 ## If it shows a code
 
