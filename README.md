@@ -3,14 +3,24 @@
 A Roku app for The Chapel Littlestown's Vimeo livestream and sermon archive, styled to The Chapel's branding guide.
 
 **The home screen**
-- **Live card** (selected when the app opens): says whether the service is live.
-  - When the service starts, it **plays full screen by itself**.
-  - OK on this card watches the service, or checks again right now if it isn't live.
-- **Sermon archive** underneath: past services from the Vimeo event, newest first.
-  - Press **Down** to get to the row, **Left/Right** to pick a service, and **OK** to play it.
-  - While a past service plays, she can pause and rewind like any other video.
-- **Back** during any video returns to the home screen. Back on the home screen leaves the app.
-  - If she leaves the live service with Back, it won't restart by itself until the next service.
+- **Live card** (selected when the app opens) says whether the service is live.
+  - When the service starts, it **plays full screen by itself**, even if she's watching a past service.
+  - OK on this card watches the live service, or checks again right now if it isn't live.
+- **Continue watching** lists past services she started, newest first, with how much time is left. OK picks up exactly where she stopped.
+- **Sermon archive** lists past services from the Vimeo event, newest first. Tiles show a blue bar for how much she's watched. Opening one she's partway through asks **Resume from 25:12** or **Start from the beginning**.
+- **Moving around:** Up and Down move between the live card and the rows, and Left/Right move along a row. Back on a row goes to the live card, and Back on the live card leaves the app.
+
+**While a video plays** (the app's own controls, in The Chapel's style)
+
+| Button | What it does |
+|---|---|
+| **OK** or **Play/Pause** | Pause and resume (the live service too) |
+| **Left**, **Rewind** or **Instant replay** | Back 10 seconds (past services) |
+| **Right** or **Fast-forward** | Ahead 30 seconds (past services) |
+| **Up**, **Down** or **\*** | Show the controls (they fade after 5 seconds, and stay while paused) |
+| **Back** | Back to the home screen (she won't be pulled back into a live service she left) |
+
+**Where she stopped is saved on the Roku itself.** It's saved when she pauses, when she leaves a video, and every minute while it plays, so it survives turning the TV off. Past services she finishes, or watches to the last minute of, drop off Continue watching.
 
 ## Install it on the Roku (one time, about 15 minutes)
 
@@ -36,8 +46,9 @@ You need a computer on **the same Wi-Fi as the Roku**. If you're setting up Gran
 ## Test it before Sunday
 
 1. Open the app. The live card should say **Not live right now**, and the sermon archive should fill with past services. That means the app can reach Vimeo.
-2. Press **Down**, then **OK** on a past service. It should play. That means video playback works.
-3. The real test is the next live service.
+2. Press **Down**, then **OK** on a past service. It should play. Try **OK** (pause), **Right** (skip ahead) and **Back**.
+3. Back on the home screen, **Continue watching** should show that service. Open it, and it should pick up where you stopped.
+4. The real test is the next live service.
 
 ## If it shows a code
 
@@ -68,7 +79,7 @@ These are **not official Vimeo APIs**. They can change without notice, and Vimeo
 
 Everything follows The Chapel's branding guide (2022):
 
-- **Colors.** Charcoal background, a Navy live card, and Sky for the selection outline. Text uses White, Cloud and Silver, all contrast pairs the guide lists as accessible. Crimson is used only for the "LIVE NOW" tag.
+- **Colors.** Charcoal background, a Navy live card and dialog, and Sky for the selection outline and progress bars. Text uses White, Cloud and Silver, all contrast pairs the guide lists as accessible. Crimson is used only for the "LIVE NOW" tag.
 - **Fonts.** Montserrat for text, and Playfair Display Bold Italic for headlines. Both are under the SIL Open Font License, with license files in `app/fonts/`.
 - **Writing.** Headlines are in sentence case with no end punctuation, and subheadings are in all caps. Dates are spelled out, like "Sunday, November 16".
 - **Logos.** The originals are in `brand/`. `tools/make_images.py` builds every app image from them, only ever scaling them down. Nothing is recolored, outlined or shadowed.
@@ -91,9 +102,10 @@ python3 tools/make_images.py     # rebuild images from brand/
 tools/build.sh                   # build dist/ChapelLive.zip
 
 # unit tests for the Vimeo parsing logic (BrightScript interpreter)
-npx @rokucommunity/brs app/components/VimeoParse.brs tests/parse_test.brs
+npx @rokucommunity/brs app/components/Util.brs app/components/VimeoParse.brs tests/parse_test.brs
 
-# screen-logic tests: drives the real home screen code through live, archive, errors
+# screen-logic tests: drives the real screen code through live, the archive, the
+# player controls, resume / continue watching, and errors
 tests/scene/run.sh
 
 # compile check

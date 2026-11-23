@@ -43,8 +43,46 @@ def on_background(size, color, logo, logo_height):
     return canvas
 
 
+def player_images():
+    """Interface pieces for the video player (not logos)."""
+    from PIL import ImageDraw
+
+    # Fade behind the player controls: clear at the top, Charcoal at the bottom.
+    w, h = 1920, 520
+    shade = Image.new("RGBA", (w, h), CHARCOAL + (0,))
+    px = shade.load()
+    for y in range(h):
+        t = y / (h - 1)
+        alpha = int(235 * min(1.0, (t / 0.7)) ** 1.6)
+        for x in range(w):
+            px[x, y] = CHARCOAL + (alpha,)
+    save_transparent(shade, "overlay_shade.png")
+
+    scale = 4  # draw big, then shrink, for smooth edges
+
+    # Loading spinner: a Sky arc on a faint ring.
+    size = 96 * scale
+    spin = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    d = ImageDraw.Draw(spin)
+    box = [6 * scale, 6 * scale, size - 6 * scale, size - 6 * scale]
+    d.arc(box, 0, 360, fill=(255, 255, 255, 50), width=8 * scale)
+    d.arc(box, -90, 180, fill=(0, 167, 221, 255), width=8 * scale)
+    save_transparent(spin.resize((96, 96), Image.LANCZOS), "spinner.png")
+
+    # Paused: a white "play" triangle in a dark circle.
+    size = 160 * scale
+    icon = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    d = ImageDraw.Draw(icon)
+    d.ellipse([0, 0, size - 1, size - 1], fill=CHARCOAL + (200,))
+    c = size / 2
+    r = size * 0.24
+    d.polygon([(c - r * 0.7, c - r), (c - r * 0.7, c + r), (c + r, c)], fill=WHITE + (255,))
+    save_transparent(icon.resize((160, 160), Image.LANCZOS), "icon_paused.png")
+
+
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
+    player_images()
     stacked_white = load("thechapel2022_S_LT_w.png")
     stacked_blue = load("thechapel2022_S_LT_bl.png")
     horizontal_white = load("thechapel2022_H_LT_w.png")

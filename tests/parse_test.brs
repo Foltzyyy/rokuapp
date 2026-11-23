@@ -1,5 +1,5 @@
 ' Unit tests for app/components/VimeoParse.brs.
-' Run: npx @rokucommunity/brs app/components/VimeoParse.brs tests/parse_test.brs
+' Run: npx @rokucommunity/brs app/components/Util.brs app/components/VimeoParse.brs tests/parse_test.brs
 ' The sample JSON mirrors the fields Vimeo returns (see yt-dlp's Vimeo extractor).
 
 sub Main()
@@ -84,11 +84,20 @@ sub Main()
     check("archive: max count", vpArchiveItems(list, 2).Count(), 2)
     check("archive: bad input", vpArchiveItems(invalid, 10).Count(), 0)
 
-    ' --- vpDurationText ---
-    check("duration 0", vpDurationText(0), "")
-    check("duration 48 min", vpDurationText(48 * 60 + 10), "48 min")
-    check("duration 1 hr", vpDurationText(3600), "1 hr")
-    check("duration 1 hr 12 min", vpDurationText(4320), "1 hr 12 min")
+    ' --- fmtDuration / fmtTime / fmtTimeLeft (Util.brs) ---
+    check("duration 0", fmtDuration(0), "")
+    check("duration 48 min", fmtDuration(48 * 60 + 10), "48 min")
+    check("duration 1 hr", fmtDuration(3600), "1 hr")
+    check("duration 1 hr 12 min", fmtDuration(4320), "1 hr 12 min")
+    check("duration under a minute", fmtDuration(20), "1 min")
+    check("time 0", fmtTime(0), "0:00")
+    check("time 83", fmtTime(83), "1:23")
+    check("time 45:07", fmtTime(45 * 60 + 7), "45:07")
+    check("time 1:02:03", fmtTime(3723), "1:02:03")
+    check("time negative", fmtTime(-5), "0:00")
+    check("time float", fmtTime(83.9), "1:23")
+    check("time left", fmtTimeLeft(23 * 60), "23 min left")
+    check("time left unknown", fmtTimeLeft(0), "")
 
     ' --- vpItemLabels ---
     l = vpItemLabels("Sunday Worship", "sunday worship", "Sunday, November 16", "1 hr 12 min")

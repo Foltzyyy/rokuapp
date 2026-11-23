@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- Test stand-in for Roku's Animation node: doesn't animate. -->
+<component name="Animation" extends="Node">
+    <interface>
+        <field id="control" type="string" />
+        <field id="duration" type="float" />
+        <field id="easeFunction" type="string" />
+        <field id="repeat" type="boolean" />
+    </interface>
+</component>

@@ -24,4 +24,4 @@ sub Main()
 end sub
 EOF
 
-npx --yes @rokucommunity/brs --root "$WORK" "$WORK/test_main.brs" 2>&1 | grep -v "extends unknown component 'Task'"
+npx --yes @rokucommunity/brs --root "$WORK" "$WORK/test_main.brs" 2>&1 | grep -v -e "extends unknown component 'Task'" -e 'unknown classname "roRegistrySection"'

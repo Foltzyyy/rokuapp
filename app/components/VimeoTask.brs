@@ -104,13 +104,14 @@ function loadArchive() as Object
 
     items = []
     for each video in vpArchiveItems(ParseJson(r.body), cfg.archiveCount)
-        labels = vpItemLabels(video.name, eventTitle, vpFormatDate(video.created), vpDurationText(video.duration))
+        labels = vpItemLabels(video.name, eventTitle, vpFormatDate(video.created), fmtDuration(video.duration))
         items.Push({
             title: labels.title
             subtitle: labels.subtitle
             thumb: video.thumb
             configUrl: video.configUrl
             uri: video.uri
+            duration: video.duration
         })
     end for
     return { status: "ok", items: items }

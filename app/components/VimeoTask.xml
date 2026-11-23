@@ -12,6 +12,7 @@
         <field id="result" type="assocarray" />
     </interface>
     <script type="text/brightscript" uri="pkg:/source/AppConfig.brs" />
+    <script type="text/brightscript" uri="Util.brs" />
     <script type="text/brightscript" uri="VimeoParse.brs" />
     <script type="text/brightscript" uri="VimeoTask.brs" />
 </component>

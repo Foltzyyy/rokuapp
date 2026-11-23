@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- Test stand-in for Roku's FloatFieldInterpolator node. -->
+<component name="FloatFieldInterpolator" extends="Node">
+    <interface>
+        <field id="key" type="array" />
+        <field id="keyValue" type="array" />
+        <field id="fieldToInterp" type="string" />
+    </interface>
+</component>

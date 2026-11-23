@@ -13,5 +13,6 @@
         <field id="content" type="node" />
         <field id="rowItemSelected" type="array" />
         <field id="rowItemFocused" type="array" value="[0,0]" />
+        <field id="jumpToRowItem" type="array" />
     </interface>
 </component>

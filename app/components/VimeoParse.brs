@@ -1,5 +1,5 @@
 ' Pure helpers for reading Vimeo's JSON and HTML. No network calls here, so these
-' can be unit-tested off the Roku (see tests/parse_test.brs).
+' can be unit-tested off the Roku (see tests/parse_test.brs). Needs Util.brs.
 
 ' Reads a nested value such as "clip_to_play.live.status". Returns invalid if any
 ' part of the path is missing.
@@ -202,17 +202,6 @@ function vpArchiveItems(videosJson as Dynamic, maxCount as Integer) as Object
     return items
 end function
 
-' "1 hr 12 min", "48 min", or "" for unknown.
-function vpDurationText(seconds as Integer) as String
-    if seconds <= 0 then return ""
-    minutes = Int((seconds + 30) / 60)
-    if minutes < 60 then return minutes.ToStr() + " min"
-    hours = Int(minutes / 60)
-    rest = minutes - hours * 60
-    if rest = 0 then return hours.ToStr() + " hr"
-    return hours.ToStr() + " hr " + rest.ToStr() + " min"
-end function
-
 ' Chooses the two lines shown under a thumbnail. Recurring-event recordings often
 ' all share the event's name, so the date becomes the title in that case.
 function vpItemLabels(name as String, eventTitle as String, dateText as String, durationText as String) as Object
@@ -227,17 +216,11 @@ function vpItemLabels(name as String, eventTitle as String, dateText as String, 
     return { title: title, subtitle: subtitle }
 end function
 
-' "2026-11-16T15:02:11+00:00" -> "Sunday, November 16" (adds the year if it isn't this year).
+' "2026-11-16T15:02:11+00:00" -> "Sunday, November 16" (see fmtDate in Util.brs).
 function vpFormatDate(iso as String) as String
     if Len(iso) < 19 then return ""
     when = CreateObject("roDateTime")
     when.FromISO8601String(Left(iso, 19) + "Z")
     when.ToLocalTime()
-    days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
-    months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-    text = days[when.GetDayOfWeek()] + ", " + months[when.GetMonth() - 1] + " " + when.GetDayOfMonth().ToStr()
-    now = CreateObject("roDateTime")
-    now.ToLocalTime()
-    if when.GetYear() <> now.GetYear() then text = text + ", " + when.GetYear().ToStr()
-    return text
+    return fmtDate(when)
 end function

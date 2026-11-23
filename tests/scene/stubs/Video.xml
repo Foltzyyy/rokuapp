@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<!-- Test stand-in for Roku's Video node: the test sets "state" to simulate playback. -->
+<!-- Test stand-in for Roku's Video node: the test sets "state", "position" and "duration" to simulate playback. -->
 <component name="Video" extends="Group">
     <interface>
         <field id="width" type="float" />
@@ -10,5 +10,10 @@
         <field id="enableTrickPlay" type="boolean" value="true" />
         <field id="errorCode" type="integer" />
         <field id="errorMsg" type="string" />
+        <field id="position" type="float" />
+        <field id="duration" type="float" />
+        <field id="seek" type="float" />
+        <field id="notificationInterval" type="float" />
+        <field id="enableUI" type="boolean" value="true" />
     </interface>
 </component>
